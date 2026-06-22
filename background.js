@@ -34,7 +34,7 @@
         try {
           const json = await OmniStore.loadIndex();
           if (json) {
-            engine = OmniEngine.deserialize(json);
+            engine = await OmniEngine.deserialize(json);
             const meta = await OmniStore.loadMeta();
             headerOnly = (meta && meta.headerOnly) || 0;
             updatedAt = meta && meta.updatedAt;
@@ -65,6 +65,10 @@
       return engine;
     },
     persistSoon,
+    // Live-update handlers await this before mutating: the index load is now
+    // async (yields across event-loop turns), so an event firing mid-load must
+    // not write into the empty engine that's about to be replaced.
+    ensureLoaded,
   };
 
   // Full rebuild from scratch.
