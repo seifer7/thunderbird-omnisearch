@@ -24,6 +24,8 @@
       input[type='checkbox'] { margin-top: 3px; }
       .hint { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
       .indent { margin-left: 28px; }
+      #accounts label { margin-bottom: 6px; }
+      #accounts .empty { color: var(--muted); font-size: 13px; }
       .status { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
       progress { width: 100%; height: 6px; margin: 0 0 10px; }
       .buttons { display: flex; gap: 8px; }
@@ -47,6 +49,13 @@
       <span>Keep the search popup open after opening a result</span>
     </label>
     <p class="hint indent">When off (the default), the popup closes as soon as you open a result.</p>
+
+    <h1>Accounts to index</h1>
+    <div id="accounts"></div>
+    <p class="hint">
+      Unchecked accounts are excluded from search. After changing this, click
+      <strong>Verify &amp; repair</strong> below (or Rebuild) to apply it to the existing index.
+    </p>
 
     <h1>Index</h1>
     <div id="status" class="status"></div>

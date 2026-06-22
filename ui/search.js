@@ -32,7 +32,27 @@
     return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   }
 
+  let ready = false;
+  function setReady(isReady) {
+    if (ready === isReady) return;
+    ready = isReady;
+    queryInput.disabled = !isReady;
+    if (isReady) {
+      queryInput.focus();
+      if (queryInput.value.trim()) void runSearch();
+    }
+  }
+
   function renderStatus(s) {
+    if (s.state === 'loading') {
+      // Index still deserializing from disk — block search until it's ready.
+      setReady(false);
+      progressEl.hidden = false;
+      progressEl.removeAttribute('value'); // indeterminate bar
+      statusEl.textContent = 'Loading index…';
+      return;
+    }
+    setReady(true);
     if (s.state === 'building') {
       progressEl.hidden = false;
       progressEl.value = s.progress || 0;
@@ -68,6 +88,7 @@
     for (const r of results) {
       const li = document.createElement('li');
       li.className = 'result';
+      li.tabIndex = 0; // focusable for keyboard navigation
       const badge = r.bodyAvailable ? '' : '<span class="badge" title="Indexed by header only">header-only</span>';
       li.innerHTML = `
         <div class="row">
@@ -91,14 +112,32 @@
   async function runSearch() {
     const query = queryInput.value;
     const seq = ++searchSeq;
-    const reply = await send({ type: 'search', query });
+    let reply;
+    try {
+      reply = await send({ type: 'search', query });
+    } catch (e) {
+      statusEl.textContent = 'Search backend not responding — reload the add-on (Remove + Load again). ' + (e && e.message ? e.message : '');
+      return;
+    }
     if (seq !== searchSeq) return; // a newer keystroke superseded this one
     if (reply && reply.type === 'results') renderResults(reply.results, query);
+    else if (reply && reply.type === 'loading') {
+      // Index not ready yet — show the loading state; the status poll re-enables
+      // search and re-runs the query once it's loaded.
+      setReady(false);
+      progressEl.hidden = false;
+      progressEl.removeAttribute('value');
+      statusEl.textContent = 'Loading index…';
+    } else emptyEl.textContent = 'No response from the index.';
   }
 
   async function refreshStatus() {
-    const reply = await send({ type: 'status' });
-    if (reply && reply.type === 'status') renderStatus(reply.status);
+    try {
+      const reply = await send({ type: 'status' });
+      if (reply && reply.type === 'status') renderStatus(reply.status);
+    } catch (e) {
+      statusEl.textContent = 'Background not responding — reload the add-on (Remove + Load again).';
+    }
   }
 
   function syncClearButton() {
@@ -126,6 +165,35 @@
       e.stopPropagation();
       e.preventDefault();
       clearBtn.click();
+      return;
+    }
+    // Tab (or Down) from the search field jumps to the first result.
+    if ((e.key === 'Tab' && !e.shiftKey) || e.key === 'ArrowDown') {
+      const items = resultsEl.querySelectorAll('li.result');
+      if (items.length) {
+        e.preventDefault();
+        items[0].focus();
+      }
+    }
+  });
+
+  // Within the results: Tab/Down move down, Shift+Tab/Up move up (Up at the top
+  // returns to the search field), Enter opens the focused result.
+  resultsEl.addEventListener('keydown', (e) => {
+    const items = [...resultsEl.querySelectorAll('li.result')];
+    const current = items.indexOf(document.activeElement);
+    if (current === -1) return;
+
+    if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) {
+      e.preventDefault();
+      if (current < items.length - 1) items[current + 1].focus();
+    } else if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
+      e.preventDefault();
+      if (current > 0) items[current - 1].focus();
+      else queryInput.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      items[current].click();
     }
   });
 
@@ -134,6 +202,9 @@
     messenger.runtime.openOptionsPage();
   });
 
-  setInterval(() => void refreshStatus(), 1000);
+  // Start disabled until the first status confirms the index is ready, so a
+  // click right after Thunderbird launch can't search a half-loaded index.
+  queryInput.disabled = true;
+  setInterval(() => void refreshStatus(), 500);
   void refreshStatus();
 })();

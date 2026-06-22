@@ -50,6 +50,7 @@ header {
   border-radius: 8px;
 }
 #q:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+#q:disabled { opacity: 0.6; cursor: progress; }
 /* Hide the native search-cancel button; we provide our own. */
 #q::-webkit-search-cancel-button { display: none; }
 
@@ -117,6 +118,11 @@ li.result {
   cursor: pointer;
 }
 li.result:hover { background: var(--hover); }
+li.result:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  background: var(--hover);
+}
 .row { display: flex; justify-content: space-between; gap: 12px; }
 .subject { font-weight: 600; }
 .subject .badge {

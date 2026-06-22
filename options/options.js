@@ -4,6 +4,7 @@
 (function () {
   const KEY = 'settings';
   const keepOpen = document.getElementById('keepOpen');
+  const accountsEl = document.getElementById('accounts');
   const statusEl = document.getElementById('status');
   const progressEl = document.getElementById('progress');
   const rebuildBtn = document.getElementById('rebuild');
@@ -29,6 +30,41 @@
     settings.keepOpenAfterResult = keepOpen.checked;
     await messenger.storage.local.set({ [KEY]: settings });
   });
+
+  // ---- Accounts to index (opt-out: excluded ids are stored) ----
+  async function setAccountIncluded(accountId, included) {
+    const settings = await getSettings();
+    const excluded = new Set(settings.excludedAccounts || []);
+    if (included) excluded.delete(accountId);
+    else excluded.add(accountId);
+    settings.excludedAccounts = [...excluded];
+    await messenger.storage.local.set({ [KEY]: settings });
+  }
+
+  async function loadAccounts() {
+    const accounts = await messenger.accounts.list();
+    const settings = await getSettings();
+    const excluded = new Set(settings.excludedAccounts || []);
+    accountsEl.textContent = '';
+    if (!accounts.length) {
+      const div = document.createElement('div');
+      div.className = 'empty';
+      div.textContent = 'No accounts found.';
+      accountsEl.appendChild(div);
+      return;
+    }
+    for (const account of accounts) {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !excluded.has(account.id);
+      cb.addEventListener('change', () => void setAccountIncluded(account.id, cb.checked));
+      const span = document.createElement('span');
+      span.textContent = account.type ? `${account.name} (${account.type})` : account.name;
+      label.append(cb, span);
+      accountsEl.appendChild(label);
+    }
+  }
 
   // ---- Index status + controls ----
   function renderStatus(s) {
@@ -81,5 +117,6 @@
   setInterval(() => void refreshStatus(), 1000);
 
   loadSettings();
+  loadAccounts();
   refreshStatus();
 })();

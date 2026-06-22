@@ -5,6 +5,7 @@
 (function () {
   let engine = new OmniEngine();
   let loaded = false;
+  let loadPromise = null;
   let building = false;
   let buildProgress = 0;
   let buildTotal = 0;
@@ -12,6 +13,11 @@
   let updatedAt;
 
   function status() {
+    // Initial deserialize from IndexedDB still in progress — the UI shows a
+    // loading indicator and disables search until this clears.
+    if (!loaded && !building) {
+      return { state: 'loading', count: 0, headerOnly: 0 };
+    }
     if (building) {
       return { state: 'building', count: engine.size, total: buildTotal, headerOnly, progress: buildProgress, updatedAt };
     }
@@ -23,17 +29,29 @@
     };
   }
 
-  // Lazy-load the persisted index on first use (handles background wake-ups).
-  async function ensureLoaded() {
-    if (loaded) return;
-    const json = await OmniStore.loadIndex();
-    if (json) {
-      engine = OmniEngine.deserialize(json);
-      const meta = await OmniStore.loadMeta();
-      headerOnly = (meta && meta.headerOnly) || 0;
-      updatedAt = meta && meta.updatedAt;
+  // Lazy-load the persisted index on first use. Single-flight: concurrent
+  // callers share one load promise, so an early search can't kick off a second
+  // deserialize that races the startup one.
+  function ensureLoaded() {
+    if (loaded) return Promise.resolve();
+    if (!loadPromise) {
+      loadPromise = (async () => {
+        try {
+          const json = await OmniStore.loadIndex();
+          if (json) {
+            engine = OmniEngine.deserialize(json);
+            const meta = await OmniStore.loadMeta();
+            headerOnly = (meta && meta.headerOnly) || 0;
+            updatedAt = meta && meta.updatedAt;
+          }
+        } catch (e) {
+          console.error('[OmniSearch] index load failed:', e);
+        } finally {
+          loaded = true;
+        }
+      })();
     }
-    loaded = true;
+    return loadPromise;
   }
 
   // ---- Debounced persistence ----
@@ -78,16 +96,24 @@
 
   // ---- UI message handling ----
   async function handle(msg) {
-    await ensureLoaded();
     switch (msg.type) {
       case 'search':
+        // Don't block on the initial load; tell the UI to show "loading" and
+        // let it retry once the index is ready.
+        if (!loaded) {
+          ensureLoaded();
+          return { type: 'loading' };
+        }
         return { type: 'results', results: engine.search(msg.query, msg.limit || 100) };
       case 'status':
+        ensureLoaded(); // kick off / continue loading; don't await
         return { type: 'status', status: status() };
       case 'rebuild':
+        await ensureLoaded();
         void rebuild();
         return { type: 'status', status: status() };
       case 'reconcile':
+        await ensureLoaded();
         await OmniEvents.reconcile(controller);
         return { type: 'status', status: status() };
       case 'open':
