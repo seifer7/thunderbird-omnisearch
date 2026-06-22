@@ -103,10 +103,11 @@ search), Fuse.js (no inverted index — won't scale to full bodies) and Lunr
 The index is stored **unencrypted in your Thunderbird profile** (IndexedDB),
 much like Thunderbird's own Gloda full-text index. It has **no network access**
 (no host permissions), so it can't be exfiltrated by the add-on itself. For
-ordinary mail it's about as exposed as data Thunderbird already keeps on disk;
-the one real increase is that **OpenPGP/S-MIME messages are decrypted and
-indexed in the clear by default**. Use disk encryption, and see
-[SECURITY.md](SECURITY.md) for the full review, threat model, and mitigations.
+ordinary mail it's about as exposed as data Thunderbird already keeps on disk.
+**Encrypted (OpenPGP/S-MIME) messages are indexed by header only by default** —
+their decrypted contents are *not* written to the index unless you opt in under
+Settings. Use disk encryption, and see [SECURITY.md](SECURITY.md) for the full
+review, threat model, and mitigations.
 
 ## License
 

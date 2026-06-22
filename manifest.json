@@ -31,8 +31,8 @@
     "default_popup": "ui/search.html",
     "default_icon": "icons/search.svg",
     "theme_icons": [
-      { "light": "icons/search-dark.svg", "dark": "icons/search-light.svg", "size": 16 },
-      { "light": "icons/search-dark.svg", "dark": "icons/search-light.svg", "size": 32 }
+      { "light": "icons/search-light.svg", "dark": "icons/search-dark.svg", "size": 16 },
+      { "light": "icons/search-light.svg", "dark": "icons/search-dark.svg", "size": 32 }
     ]
   },
   "commands": {

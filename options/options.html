@@ -58,10 +58,23 @@
       <input type="checkbox" id="includeSpamTrash" />
       <span>Include Junk (Spam) and Trash folders</span>
     </label>
+    <p class="hint indent">Off by default — Junk and Trash are kept out of search.</p>
+
+    <label style="margin-top: 12px">
+      <input type="checkbox" id="indexEncryptedBodies" />
+      <span>Index the contents of encrypted (OpenPGP/S-MIME) emails</span>
+    </label>
     <p class="hint indent">
-      Off by default — Junk and Trash are kept out of search. After changing any
-      of the above, click <strong>Verify &amp; repair</strong> below (or Rebuild)
-      to apply it to the existing index.
+      <strong>Off by default for privacy.</strong> Encrypted emails are indexed
+      by subject/sender only, so their decrypted text is never written to the
+      on-disk index. Turn this on to make their bodies searchable — their
+      decrypted content will then be stored unencrypted in the index. See
+      <code>SECURITY.md</code>.
+    </p>
+
+    <p class="hint indent">
+      After changing any of the above, click <strong>Verify &amp; repair</strong>
+      below (or Rebuild) to apply it to the existing index.
     </p>
 
     <h1>Index</h1>

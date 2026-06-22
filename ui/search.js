@@ -81,7 +81,9 @@
       const li = document.createElement('li');
       li.className = 'result';
       li.tabIndex = 0; // focusable for keyboard navigation
-      const badge = r.bodyAvailable ? '' : '<span class="badge" title="Indexed by header only">header-only</span>';
+      let badge = '';
+      if (r.encrypted) badge = '<span class="badge" title="Encrypted message — indexed by subject/sender only">encrypted</span>';
+      else if (!r.bodyAvailable) badge = '<span class="badge" title="Indexed by header only">header-only</span>';
       li.innerHTML = `
         <div class="row">
           <span class="subject">${escape(r.subject || '(no subject)')}${badge}</span>

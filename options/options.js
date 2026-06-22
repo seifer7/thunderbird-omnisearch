@@ -5,6 +5,7 @@
   const KEY = 'settings';
   const keepOpen = document.getElementById('keepOpen');
   const includeSpamTrash = document.getElementById('includeSpamTrash');
+  const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
   const accountsEl = document.getElementById('accounts');
   const statusEl = document.getElementById('status');
   const progressEl = document.getElementById('progress');
@@ -25,6 +26,7 @@
     const settings = await getSettings();
     keepOpen.checked = !!settings.keepOpenAfterResult;
     includeSpamTrash.checked = !!settings.includeSpamTrash;
+    indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
   }
 
   keepOpen.addEventListener('change', async () => {
@@ -36,6 +38,12 @@
   includeSpamTrash.addEventListener('change', async () => {
     const settings = await getSettings();
     settings.includeSpamTrash = includeSpamTrash.checked;
+    await messenger.storage.local.set({ [KEY]: settings });
+  });
+
+  indexEncryptedBodies.addEventListener('change', async () => {
+    const settings = await getSettings();
+    settings.indexEncryptedBodies = indexEncryptedBodies.checked;
     await messenger.storage.local.set({ [KEY]: settings });
   });
 
