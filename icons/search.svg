@@ -1,5 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-  <!-- Photon-style magnifier. context-fill lets Thunderbird tint it to match
-       the toolbar (adapts to light/dark themes), like the built-in icons. -->
-  <path fill="context-fill" fill-opacity="context-fill-opacity" d="M15.707 14.293l-3.616-3.616A6.453 6.453 0 0 0 13.5 6.5 6.5 6.5 0 1 0 7 13a6.453 6.453 0 0 0 4.177-1.409l3.616 3.616a1 1 0 0 0 1.414-1.414zM2.5 6.5A4.5 4.5 0 1 1 7 11a4.505 4.505 0 0 1-4.5-4.5z"/>
+  <!-- Photon-style magnifier. Fixed mid-grey fill, visible on both light and
+       dark toolbars. Thunderbird's per-theme icon tinting (theme_icons /
+       context-fill) is unreliable for action icons, so we use one fixed colour
+       (same approach as the quick-reply add-on). -->
+  <path fill="#9AA0A6" d="M15.707 14.293l-3.616-3.616A6.453 6.453 0 0 0 13.5 6.5 6.5 6.5 0 1 0 7 13a6.453 6.453 0 0 0 4.177-1.409l3.616 3.616a1 1 0 0 0 1.414-1.414zM2.5 6.5A4.5 4.5 0 1 1 7 11a4.505 4.505 0 0 1-4.5-4.5z"/>
 </svg>

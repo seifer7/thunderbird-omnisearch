@@ -29,11 +29,7 @@
   "action": {
     "default_title": "OmniSearch — search your mail",
     "default_popup": "ui/search.html",
-    "default_icon": "icons/search.svg",
-    "theme_icons": [
-      { "light": "icons/search-light.svg", "dark": "icons/search-dark.svg", "size": 16 },
-      { "light": "icons/search-light.svg", "dark": "icons/search-dark.svg", "size": 32 }
-    ]
+    "default_icon": "icons/search.svg"
   },
   "commands": {
     "_execute_action": {

@@ -40,6 +40,21 @@
       }
       button:hover { background: var(--hover); }
       button:disabled { opacity: 0.5; cursor: default; }
+      .banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 16px;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-left: 3px solid AccentColor;
+        border-radius: 8px;
+        background: var(--hover, rgba(127, 127, 127, 0.08));
+        font-size: 13px;
+      }
+      .banner-actions { display: flex; gap: 8px; flex: none; }
+      .banner button.secondary { border-color: transparent; background: transparent; }
     </style>
   </head>
   <body>
@@ -72,10 +87,13 @@
       <code>SECURITY.md</code>.
     </p>
 
-    <p class="hint indent">
-      After changing any of the above, click <strong>Verify &amp; repair</strong>
-      below (or Rebuild) to apply it to the existing index.
-    </p>
+    <div id="applyBanner" class="banner" hidden>
+      <span id="applyBannerText"></span>
+      <span class="banner-actions">
+        <button id="applyChange" type="button">Apply now</button>
+        <button id="dismissBanner" type="button" class="secondary">Later</button>
+      </span>
+    </div>
 
     <h1>Index</h1>
     <div id="status" class="status"></div>

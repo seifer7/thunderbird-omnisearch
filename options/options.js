@@ -11,9 +11,33 @@
   const progressEl = document.getElementById('progress');
   const rebuildBtn = document.getElementById('rebuild');
   const reconcileBtn = document.getElementById('reconcile');
+  const applyBanner = document.getElementById('applyBanner');
+  const applyBannerText = document.getElementById('applyBannerText');
+  const applyChangeBtn = document.getElementById('applyChange');
+  const dismissBannerBtn = document.getElementById('dismissBanner');
 
   function send(msg) {
     return messenger.runtime.sendMessage(msg);
+  }
+
+  // ---- "Apply changes" banner ----
+  // Account / Junk-Trash changes apply incrementally via reconcile (only the
+  // affected messages are added or removed — no full rebuild). The encrypted-
+  // bodies toggle changes how existing messages are read, so it needs a rebuild.
+  let pendingMode = null; // 'reconcile' | 'rebuild' | null
+  function showBanner(mode) {
+    if (pendingMode === 'rebuild' || mode === 'rebuild') pendingMode = 'rebuild';
+    else pendingMode = 'reconcile';
+    applyBannerText.textContent =
+      pendingMode === 'rebuild'
+        ? 'Indexing of encrypted message bodies changed — a full rebuild is needed to apply it.'
+        : 'Indexing scope changed. Apply now to add/remove just the affected messages (no full rebuild).';
+    applyChangeBtn.textContent = pendingMode === 'rebuild' ? 'Rebuild now' : 'Apply now';
+    applyBanner.hidden = false;
+  }
+  function hideBanner() {
+    applyBanner.hidden = true;
+    pendingMode = null;
   }
 
   // ---- Settings ----
@@ -39,12 +63,14 @@
     const settings = await getSettings();
     settings.includeSpamTrash = includeSpamTrash.checked;
     await messenger.storage.local.set({ [KEY]: settings });
+    showBanner('reconcile');
   });
 
   indexEncryptedBodies.addEventListener('change', async () => {
     const settings = await getSettings();
     settings.indexEncryptedBodies = indexEncryptedBodies.checked;
     await messenger.storage.local.set({ [KEY]: settings });
+    showBanner('rebuild');
   });
 
   // ---- Accounts to index (opt-out: excluded ids are stored) ----
@@ -74,7 +100,10 @@
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = !excluded.has(account.id);
-      cb.addEventListener('change', () => void setAccountIncluded(account.id, cb.checked));
+      cb.addEventListener('change', async () => {
+        await setAccountIncluded(account.id, cb.checked);
+        showBanner('reconcile');
+      });
       const span = document.createElement('span');
       span.textContent = account.type ? `${account.name} (${account.type})` : account.name;
       label.append(cb, span);
@@ -128,6 +157,18 @@
     await send({ type: 'reconcile' });
     void refreshStatus();
   });
+
+  applyChangeBtn.addEventListener('click', async () => {
+    const mode = pendingMode === 'rebuild' ? 'rebuild' : 'reconcile';
+    hideBanner();
+    rebuildBtn.disabled = true;
+    reconcileBtn.disabled = true;
+    statusEl.textContent = mode === 'rebuild' ? 'Rebuilding…' : 'Updating the index…';
+    await send({ type: mode });
+    void refreshStatus();
+  });
+
+  dismissBannerBtn.addEventListener('click', hideBanner);
 
   // Poll so progress advances live during a build.
   setInterval(() => void refreshStatus(), 1000);
