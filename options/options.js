@@ -14,7 +14,6 @@
   const applyBanner = document.getElementById('applyBanner');
   const applyBannerText = document.getElementById('applyBannerText');
   const applyChangeBtn = document.getElementById('applyChange');
-  const dismissBannerBtn = document.getElementById('dismissBanner');
 
   function send(msg) {
     return messenger.runtime.sendMessage(msg);
@@ -38,6 +37,32 @@
   function hideBanner() {
     applyBanner.hidden = true;
     pendingMode = null;
+    applyChangeBtn.disabled = false;
+  }
+
+  // Resolves once a triggered rebuild has finished (or never started). reconcile
+  // completes synchronously with its message reply, so this is only for rebuild.
+  function waitUntilBuildDone() {
+    return new Promise((resolve) => {
+      let started = false;
+      let ticks = 0;
+      const tick = async () => {
+        ticks++;
+        let state = null;
+        try {
+          const reply = await send({ type: 'status' });
+          if (reply && reply.type === 'status') state = reply.status.state;
+        } catch (e) {
+          /* ignore */
+        }
+        if (state === 'building') started = true;
+        // Done when a started build leaves the building state, or if a build
+        // never began within ~12s (no-op / failed).
+        if ((started && state !== 'building') || (!started && ticks > 20)) return resolve();
+        setTimeout(tick, 600);
+      };
+      tick();
+    });
   }
 
   // ---- Settings ----
@@ -160,15 +185,22 @@
 
   applyChangeBtn.addEventListener('click', async () => {
     const mode = pendingMode === 'rebuild' ? 'rebuild' : 'reconcile';
-    hideBanner();
+    // Keep the banner up while the change is applied; hide it on completion.
+    applyChangeBtn.disabled = true;
+    applyChangeBtn.textContent = mode === 'rebuild' ? 'Rebuilding…' : 'Applying…';
     rebuildBtn.disabled = true;
     reconcileBtn.disabled = true;
     statusEl.textContent = mode === 'rebuild' ? 'Rebuilding…' : 'Updating the index…';
-    await send({ type: mode });
-    void refreshStatus();
+    try {
+      await send({ type: mode }); // reconcile resolves when done; rebuild returns immediately
+      if (mode === 'rebuild') await waitUntilBuildDone();
+    } finally {
+      hideBanner();
+      rebuildBtn.disabled = false;
+      reconcileBtn.disabled = false;
+      void refreshStatus();
+    }
   });
-
-  dismissBannerBtn.addEventListener('click', hideBanner);
 
   // Poll so progress advances live during a build.
   setInterval(() => void refreshStatus(), 1000);
