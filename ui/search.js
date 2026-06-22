@@ -9,6 +9,7 @@
   const statusEl = $('status');
   const progressEl = $('progress');
   const emptyEl = $('empty');
+  const loadingEl = $('loading');
 
   function send(msg) {
     return messenger.runtime.sendMessage(msg);
@@ -32,27 +33,21 @@
     return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   }
 
+  // The spinner shows from popup-open until the FIRST status reply arrives. The
+  // background only answers status once the index has finished loading, so that
+  // first reply is our definitive "ready" signal — we then clear the spinner and
+  // enable the field, permanently for this popup session.
   let ready = false;
-  function setReady(isReady) {
-    if (ready === isReady) return;
-    ready = isReady;
-    queryInput.disabled = !isReady;
-    if (isReady) {
-      queryInput.focus();
-      if (queryInput.value.trim()) void runSearch();
-    }
+  function markReady() {
+    if (ready) return;
+    ready = true;
+    loadingEl.hidden = true;
+    queryInput.disabled = false;
+    queryInput.focus();
+    if (queryInput.value.trim()) void runSearch();
   }
 
   function renderStatus(s) {
-    if (s.state === 'loading') {
-      // Index still deserializing from disk — block search until it's ready.
-      setReady(false);
-      progressEl.hidden = false;
-      progressEl.removeAttribute('value'); // indeterminate bar
-      statusEl.textContent = 'Loading index…';
-      return;
-    }
-    setReady(true);
     if (s.state === 'building') {
       progressEl.hidden = false;
       progressEl.value = s.progress || 0;
@@ -68,9 +63,6 @@
         statusEl.textContent = 'No index yet — click Rebuild to index your mail.';
       } else {
         const parts = [`${s.count.toLocaleString()} messages indexed`];
-        if (s.headerOnly > 0) {
-          parts.push(`${s.headerOnly.toLocaleString()} header-only (body not downloaded — enable full offline sync to index them)`);
-        }
         if (s.updatedAt) parts.push(`updated ${new Date(s.updatedAt).toLocaleTimeString()}`);
         statusEl.textContent = parts.join(' · ');
       }
@@ -98,7 +90,7 @@
         <div class="meta">${escape(r.from)} → ${escape(r.to)} · <span class="folder">${escape(r.folderName)}</span></div>
         <div class="preview">${escape(r.preview)}</div>`;
       li.addEventListener('click', async () => {
-        await send({ type: 'open', id: r.id });
+        await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId });
         // Close the popup once the message opens, unless the user opted to keep
         // it open in settings.
         const settings = await getSettings();
@@ -121,20 +113,16 @@
     }
     if (seq !== searchSeq) return; // a newer keystroke superseded this one
     if (reply && reply.type === 'results') renderResults(reply.results, query);
-    else if (reply && reply.type === 'loading') {
-      // Index not ready yet — show the loading state; the status poll re-enables
-      // search and re-runs the query once it's loaded.
-      setReady(false);
-      progressEl.hidden = false;
-      progressEl.removeAttribute('value');
-      statusEl.textContent = 'Loading index…';
-    } else emptyEl.textContent = 'No response from the index.';
+    else emptyEl.textContent = 'No response from the index.';
   }
 
   async function refreshStatus() {
     try {
       const reply = await send({ type: 'status' });
-      if (reply && reply.type === 'status') renderStatus(reply.status);
+      if (reply && reply.type === 'status') {
+        markReady(); // first reply means the index has loaded — clear the spinner
+        renderStatus(reply.status);
+      }
     } catch (e) {
       statusEl.textContent = 'Background not responding — reload the add-on (Remove + Load again).';
     }
@@ -202,9 +190,13 @@
     messenger.runtime.openOptionsPage();
   });
 
-  // Start disabled until the first status confirms the index is ready, so a
-  // click right after Thunderbird launch can't search a half-loaded index.
+  // Show the spinner and disable the field until the first status reply (which
+  // the background only sends once the index has loaded).
+  loadingEl.hidden = false;
   queryInput.disabled = true;
+  // Safety net: never leave the field stuck if the background somehow never
+  // answers — re-enable after a few seconds so the user can still try.
+  setTimeout(markReady, 8000);
   setInterval(() => void refreshStatus(), 500);
   void refreshStatus();
 })();

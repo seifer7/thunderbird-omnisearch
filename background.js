@@ -13,11 +13,6 @@
   let updatedAt;
 
   function status() {
-    // Initial deserialize from IndexedDB still in progress — the UI shows a
-    // loading indicator and disables search until this clears.
-    if (!loaded && !building) {
-      return { state: 'loading', count: 0, headerOnly: 0 };
-    }
     if (building) {
       return { state: 'building', count: engine.size, total: buildTotal, headerOnly, progress: buildProgress, updatedAt };
     }
@@ -94,19 +89,50 @@
     await persistNow();
   }
 
+  // Open a single message by its numeric id, with a tab fallback.
+  async function tryOpen(id) {
+    if (!Number.isFinite(id)) return false;
+    try {
+      await messenger.messageDisplay.open({ messageId: id, location: 'tab' });
+      return true;
+    } catch (e) {
+      try {
+        const tab = await messenger.mailTabs.getCurrent();
+        await messenger.mailTabs.setSelectedMessages(tab.id, [id]);
+        return true;
+      } catch (e2) {
+        return false;
+      }
+    }
+  }
+
+  // Open a result. The stored numeric id can be stale after a restart, so if it
+  // fails we re-resolve the message by its stable RFC Message-ID and open that.
+  async function openMessage(msg) {
+    if (await tryOpen(Number(msg.id))) return;
+    if (msg.headerMessageId) {
+      try {
+        const q = await messenger.messages.query({ headerMessageId: msg.headerMessageId });
+        const list = (q && q.messages) || [];
+        if (list.length && (await tryOpen(list[0].id))) return;
+      } catch (e) {
+        console.error('[OmniSearch] could not re-resolve message:', e);
+      }
+    }
+    console.error('[OmniSearch] could not open message', msg.id, msg.headerMessageId);
+  }
+
   // ---- UI message handling ----
   async function handle(msg) {
     switch (msg.type) {
       case 'search':
-        // Don't block on the initial load; tell the UI to show "loading" and
-        // let it retry once the index is ready.
-        if (!loaded) {
-          ensureLoaded();
-          return { type: 'loading' };
-        }
+        await ensureLoaded();
         return { type: 'results', results: engine.search(msg.query, msg.limit || 100) };
       case 'status':
-        ensureLoaded(); // kick off / continue loading; don't await
+        // Await the load so the very first status reply only arrives once the
+        // index is ready — the popup shows its spinner until then, then clears
+        // it for good.
+        await ensureLoaded();
         return { type: 'status', status: status() };
       case 'rebuild':
         await ensureLoaded();
@@ -117,16 +143,7 @@
         await OmniEvents.reconcile(controller);
         return { type: 'status', status: status() };
       case 'open':
-        try {
-          await messenger.messageDisplay.open({ messageId: Number(msg.id), location: 'tab' });
-        } catch (e) {
-          try {
-            const tab = await messenger.mailTabs.getCurrent();
-            await messenger.mailTabs.setSelectedMessages(tab.id, [Number(msg.id)]);
-          } catch (e2) {
-            /* give up silently */
-          }
-        }
+        await openMessage(msg);
         return { type: 'ok' };
       default:
         return { type: 'ok' };
