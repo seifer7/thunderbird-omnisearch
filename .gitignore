@@ -1,0 +1,10 @@
+# Build artifacts
+*.xpi
+
+# Tooling (the extension itself needs no build)
+node_modules/
+
+# macOS / editor
+.DS_Store
+*.log
+*~

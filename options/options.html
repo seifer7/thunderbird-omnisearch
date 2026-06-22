@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OmniSearch Settings</title>
+    <style>
+      :root {
+        --fg: #1c1b22; --bg: #ffffff; --muted: #6b6b75; --border: #d7d7dc; --hover: #f0f6ff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --fg: #f0f0f4; --bg: #1c1b22; --muted: #a8a8b3; --border: #38383d; --hover: #2a2a33; }
+      }
+      body {
+        margin: 0;
+        padding: 20px 24px;
+        font: 14px/1.5 system-ui, sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        max-width: 560px;
+      }
+      h1 { font-size: 16px; margin: 0 0 12px; }
+      h1:not(:first-child) { margin-top: 28px; }
+      label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+      input[type='checkbox'] { margin-top: 3px; }
+      .hint { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
+      .indent { margin-left: 28px; }
+      .status { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
+      progress { width: 100%; height: 6px; margin: 0 0 10px; }
+      .buttons { display: flex; gap: 8px; }
+      button {
+        padding: 8px 14px;
+        font-size: 13px;
+        color: var(--fg);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      button:hover { background: var(--hover); }
+      button:disabled { opacity: 0.5; cursor: default; }
+    </style>
+  </head>
+  <body>
+    <h1>Search behavior</h1>
+    <label>
+      <input type="checkbox" id="keepOpen" />
+      <span>Keep the search popup open after opening a result</span>
+    </label>
+    <p class="hint indent">When off (the default), the popup closes as soon as you open a result.</p>
+
+    <h1>Index</h1>
+    <div id="status" class="status"></div>
+    <progress id="progress" max="1" value="0" hidden></progress>
+    <div class="buttons">
+      <button id="rebuild" type="button">Rebuild index</button>
+      <button id="reconcile" type="button">Verify &amp; repair</button>
+    </div>
+    <p class="hint">
+      <strong>Rebuild</strong> re-indexes all of your mail from scratch.
+      <strong>Verify &amp; repair</strong> checks the index against your folders and fixes any drift —
+      removing stale entries and indexing anything missing.
+    </p>
+
+    <script src="options.js"></script>
+  </body>
+</html>

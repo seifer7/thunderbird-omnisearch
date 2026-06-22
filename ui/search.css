@@ -1,0 +1,136 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1c1b22;
+  --muted: #6b6b75;
+  --border: #d7d7dc;
+  /* Use the platform/theme accent colour, not a hardcoded blue. */
+  --accent: AccentColor;
+  --hover: #f0f6ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b22;
+    --fg: #f0f0f4;
+    --muted: #a8a8b3;
+    --border: #38383d;
+    --hover: #2a2a33;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  /* Fixed width so the action popup panel has a sensible size (popups size to
+     their content). The results list scrolls rather than growing the panel. */
+  width: 680px;
+  font: 14px/1.4 system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.search-box { position: relative; flex: 1; display: flex; }
+#q {
+  flex: 1;
+  padding: 10px 34px 10px 12px;
+  font-size: 15px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+#q:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+/* Hide the native search-cancel button; we provide our own. */
+#q::-webkit-search-cancel-button { display: none; }
+
+.clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.clear:hover { background: var(--hover); color: var(--fg); }
+
+.actions { display: flex; gap: 6px; }
+button {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+button:hover { background: var(--hover); }
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  color: var(--muted);
+}
+.icon-btn:hover { color: var(--fg); }
+
+.status {
+  padding: 6px 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+progress { width: calc(100% - 28px); margin: 0 14px 8px; height: 6px; }
+
+ul#results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Cap the panel height; scroll results within the popup. */
+  max-height: 460px;
+  overflow-y: auto;
+}
+li.result {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+li.result:hover { background: var(--hover); }
+.row { display: flex; justify-content: space-between; gap: 12px; }
+.subject { font-weight: 600; }
+.subject .badge {
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 5px;
+  margin-left: 6px;
+}
+.date { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.preview { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.folder { color: var(--accent); }
+
+.empty { padding: 24px 14px; color: var(--muted); text-align: center; }
