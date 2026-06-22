@@ -18,6 +18,10 @@
 }
 
 * { box-sizing: border-box; }
+/* The `hidden` attribute must win over element rules that set `display`
+   (e.g. .loading and .clear use display:flex), otherwise hiding them via
+   element.hidden = true has no visual effect. */
+[hidden] { display: none !important; }
 body {
   margin: 0;
   /* Fixed width so the action popup panel has a sensible size (popups size to
