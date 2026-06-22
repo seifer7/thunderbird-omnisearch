@@ -52,9 +52,16 @@
 
     <h1>Accounts to index</h1>
     <div id="accounts"></div>
-    <p class="hint">
-      Unchecked accounts are excluded from search. After changing this, click
-      <strong>Verify &amp; repair</strong> below (or Rebuild) to apply it to the existing index.
+    <p class="hint">Unchecked accounts are excluded from search.</p>
+
+    <label style="margin-top: 12px">
+      <input type="checkbox" id="includeSpamTrash" />
+      <span>Include Junk (Spam) and Trash folders</span>
+    </label>
+    <p class="hint indent">
+      Off by default — Junk and Trash are kept out of search. After changing any
+      of the above, click <strong>Verify &amp; repair</strong> below (or Rebuild)
+      to apply it to the existing index.
     </p>
 
     <h1>Index</h1>

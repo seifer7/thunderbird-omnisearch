@@ -21,9 +21,23 @@ silently drops messages, this index keeps itself correct with live updates and a
 3. Click the blue **OmniSearch** toolbar button to open the search tab. On first
    install it auto-builds the index; you can also click **Rebuild** any time.
 
-To make a distributable `.xpi`, run `./build.sh` (needs `zip`). Temporary
-add-ons are removed on restart; a signed/packaged `.xpi` is needed for permanent
-installation.
+To build a packaged `.xpi`, run `./build.sh` (needs `zip`).
+
+### Permanent install
+
+Temporary add-ons are removed when Thunderbird restarts. To install
+permanently you have two options:
+
+1. **Local (no signing).** Thunderbird honours a config switch that Firefox
+   release does not: in `about:config` set
+   `xpinstall.signatures.required` to **false**, then install the `.xpi` via
+   Add-ons Manager → gear → *Install Add-on From File…*. It persists across
+   restarts. Simplest for personal use on your own machine.
+2. **Signed (for distribution).** Real signing is done by Mozilla — submit the
+   `.xpi` to [addons.thunderbird.net](https://addons.thunderbird.net) (ATN),
+   which reviews and signs it. Required if you want it to install on other
+   machines without flipping the config switch. There is no purely local way to
+   produce a Thunderbird-valid signature.
 
 ## What you get
 
@@ -33,6 +47,19 @@ installation.
 - **Verify & repair**: re-walks every folder, removes stale entries, indexes
   anything missing — so a message can never stay permanently hidden.
 - Index persisted to **IndexedDB**, so search is instant after a restart.
+
+## What gets indexed
+
+**Junk (Spam) and Trash folders are NOT indexed by default.** Every other folder
+of every included account is indexed. You can opt Junk/Trash back in under
+Settings → *Accounts to index* → "Include Junk (Spam) and Trash folders", then
+**Rebuild** (or **Verify & repair**) to apply it. Account-level selection lives
+in the same place. (Per-individual-folder selection isn't implemented; it's
+account-level plus the Junk/Trash toggle.)
+
+Open the search with the toolbar button or the **`Alt+S`** (Option-S) shortcut,
+which is assigned automatically on install; change it under Add-ons Manager →
+gear → *Manage Extension Shortcuts*.
 
 ## Making IMAP mail fully searchable (recommended one-time setting)
 

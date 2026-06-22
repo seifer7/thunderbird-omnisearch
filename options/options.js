@@ -4,6 +4,7 @@
 (function () {
   const KEY = 'settings';
   const keepOpen = document.getElementById('keepOpen');
+  const includeSpamTrash = document.getElementById('includeSpamTrash');
   const accountsEl = document.getElementById('accounts');
   const statusEl = document.getElementById('status');
   const progressEl = document.getElementById('progress');
@@ -23,11 +24,18 @@
   async function loadSettings() {
     const settings = await getSettings();
     keepOpen.checked = !!settings.keepOpenAfterResult;
+    includeSpamTrash.checked = !!settings.includeSpamTrash;
   }
 
   keepOpen.addEventListener('change', async () => {
     const settings = await getSettings();
     settings.keepOpenAfterResult = keepOpen.checked;
+    await messenger.storage.local.set({ [KEY]: settings });
+  });
+
+  includeSpamTrash.addEventListener('change', async () => {
+    const settings = await getSettings();
+    settings.includeSpamTrash = includeSpamTrash.checked;
     await messenger.storage.local.set({ [KEY]: settings });
   });
 
