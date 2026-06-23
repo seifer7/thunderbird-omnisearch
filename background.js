@@ -1,9 +1,10 @@
 'use strict';
-// Orchestrator: owns the in-memory index, persists it, applies live updates,
-// and answers search/command messages from the UI page. Depends on the globals
-// OmniEngine, OmniIndexer, OmniEvents, OmniStore (loaded first; see manifest).
+// Orchestrator: drives the search engine (which lives in a Web Worker so its
+// heavy JSON + index work never touches the UI thread), applies live updates via
+// the messenger.* APIs, and answers search/command messages from the UI page.
+// Depends on the globals OmniIndexer, OmniEvents (loaded first; see manifest).
+// The worker owns OmniEngine/OmniStore/MiniSearch.
 (function () {
-  let engine = new OmniEngine();
   let loaded = false;
   let loadPromise = null;
   let building = false;
@@ -11,14 +12,68 @@
   let buildTotal = 0;
   let headerOnly = 0;
   let updatedAt;
+  // Cached document count reported by the worker (we can't read engine.size
+  // synchronously across the worker boundary).
+  let engineCount = 0;
+
+  // ---- Worker RPC ----
+  // The engine runs in lib/engine.worker.js. Every call posts a request tagged
+  // with a reqId and resolves when the worker echoes that id back.
+  const worker = new Worker('lib/engine.worker.js');
+  const pending = new Map();
+  let nextReqId = 1;
+  worker.onmessage = (e) => {
+    const { reqId, ok, result, error } = e.data;
+    const resolver = pending.get(reqId);
+    if (!resolver) return;
+    pending.delete(reqId);
+    if (ok) resolver.resolve(result);
+    else resolver.reject(new Error(error));
+  };
+  worker.onerror = (e) => console.error('[OmniSearch] worker error:', e.message || e);
+  function call(cmd, payload) {
+    const reqId = nextReqId++;
+    return new Promise((resolve, reject) => {
+      pending.set(reqId, { resolve, reject });
+      worker.postMessage({ reqId, cmd, ...payload });
+    });
+  }
+
+  // Async stand-in for the old in-process SearchEngine. fullBuild/events talk to
+  // this; each method updates the cached count from the worker's reply.
+  const engineProxy = {
+    async search(query, limit) {
+      return (await call('search', { query, limit })).results;
+    },
+    async addAll(docs) {
+      engineCount = (await call('addAll', { docs })).count;
+    },
+    async upsert(doc) {
+      engineCount = (await call('upsert', { doc })).count;
+    },
+    async remove(ids) {
+      engineCount = (await call('remove', { ids })).count;
+    },
+    async knownIds() {
+      return (await call('knownIds')).ids;
+    },
+    async reset() {
+      engineCount = (await call('reset')).count;
+    },
+    async flush(meta) {
+      const r = await call('flush', meta || {});
+      engineCount = r.count;
+      headerOnly = r.headerOnly;
+    },
+  };
 
   function status() {
     if (building) {
-      return { state: 'building', count: engine.size, total: buildTotal, headerOnly, progress: buildProgress, updatedAt };
+      return { state: 'building', count: engineCount, total: buildTotal, headerOnly, progress: buildProgress, updatedAt };
     }
     return {
-      state: engine.size > 0 ? 'ready' : 'empty',
-      count: engine.size,
+      state: engineCount > 0 ? 'ready' : 'empty',
+      count: engineCount,
       headerOnly,
       updatedAt,
     };
@@ -32,13 +87,11 @@
     if (!loadPromise) {
       loadPromise = (async () => {
         try {
-          const json = await OmniStore.loadIndex();
-          if (json) {
-            engine = await OmniEngine.deserialize(json);
-            const meta = await OmniStore.loadMeta();
-            headerOnly = (meta && meta.headerOnly) || 0;
-            updatedAt = meta && meta.updatedAt;
-          }
+          // The worker reads IndexedDB and deserializes off the UI thread.
+          const r = await call('load');
+          engineCount = r.count;
+          headerOnly = r.headerOnly || 0;
+          updatedAt = r.updatedAt;
         } catch (e) {
           console.error('[OmniSearch] index load failed:', e);
         } finally {
@@ -49,39 +102,26 @@
     return loadPromise;
   }
 
-  // ---- Debounced persistence ----
-  let persistTimer;
-  async function persistNow() {
-    updatedAt = Date.now();
-    await OmniStore.saveIndex(engine.serialize(), { count: engine.size, headerOnly, updatedAt });
-  }
-  function persistSoon() {
-    if (persistTimer) clearTimeout(persistTimer);
-    persistTimer = setTimeout(() => void persistNow(), 1500);
-  }
-
   const controller = {
     get engine() {
-      return engine;
+      return engineProxy;
     },
-    persistSoon,
-    // Live-update handlers await this before mutating: the index load is now
-    // async (yields across event-loop turns), so an event firing mid-load must
-    // not write into the empty engine that's about to be replaced.
+    // Live-update handlers await this before mutating: it guarantees the worker
+    // has finished loading the persisted index before any incremental update is
+    // sent, so updates can't be applied to an empty index that's about to load.
     ensureLoaded,
   };
 
-  // Full rebuild from scratch.
+  // Full rebuild from scratch. Persistence happens once at the end (flush).
   async function rebuild() {
     if (building) return;
     await ensureLoaded();
     building = true;
     buildProgress = 0;
     headerOnly = 0;
-    const fresh = new OmniEngine();
-    engine = fresh;
+    await engineProxy.reset();
     try {
-      const result = await OmniIndexer.fullBuild(fresh, (fraction, _count, ho, total) => {
+      const result = await OmniIndexer.fullBuild(engineProxy, (fraction, _count, ho, total) => {
         buildProgress = fraction;
         headerOnly = ho;
         buildTotal = total || 0;
@@ -90,7 +130,7 @@
     } finally {
       building = false;
     }
-    await persistNow();
+    await engineProxy.flush({ headerOnly });
   }
 
   // Open a single message by its numeric id, with a tab fallback.
@@ -131,7 +171,7 @@
     switch (msg.type) {
       case 'search':
         await ensureLoaded();
-        return { type: 'results', results: engine.search(msg.query, msg.limit || 100) };
+        return { type: 'results', results: await engineProxy.search(msg.query, msg.limit || 100) };
       case 'status':
         // Await the load so the very first status reply only arrives once the
         // index is ready — the popup shows its spinner until then, then clears
@@ -180,7 +220,7 @@
     messenger.runtime.onInstalled.addListener(async (details) => {
       if (details.reason === 'install') {
         await ensureLoaded();
-        if (engine.size === 0) void rebuild();
+        if (engineCount === 0) void rebuild();
       }
     }),
   );
