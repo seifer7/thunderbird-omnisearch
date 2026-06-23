@@ -13,9 +13,8 @@
 
   // Launched as the centered standalone window (background opens
   // ui/search.html#modal) rather than the toolbar-anchored popup. Enables
-  // window-dismissal affordances (Escape/blur close) and self-resizing so the
-  // window grows from just the search field to fit results. The <html> also
-  // carries class "modal" for layout (see init).
+  // Escape-to-close and self-resizing so the window grows from just the search
+  // field to fit results. The <html> also carries class "modal" for layout.
   const isModal = location.hash === '#modal';
   let modalWinId = null;
   // The window's opening height (captured at init). The window never shrinks
@@ -40,16 +39,20 @@
     messenger.windows.update(modalWinId, { height: target }).catch(() => {});
   }
 
-  // Show the "loading the index" hint. In the toolbar popup this is the #loading
-  // banner; in the centered window we use the field's placeholder instead so the
-  // hint never changes the window's height (which would cause an open-time
-  // grow-then-shrink flicker).
+  // Show the "not ready yet" hint, worded for what's actually happening:
+  // "Indexing…" while a (re)build runs, "Loading…" while the index loads from
+  // disk. In the toolbar popup this is the #loading banner; in the centered
+  // window we use the field's placeholder instead so the hint never changes the
+  // window's height (which would cause an open-time grow-then-shrink flicker).
   const basePlaceholder = queryInput.placeholder;
-  function showLoadingHint(show) {
+  const loadingTextEl = loadingEl.querySelector('span:last-of-type');
+  function showLoadingHint(show, building) {
+    const msg = building ? 'Indexing your mail…' : 'Loading your mail index…';
     if (isModal) {
-      queryInput.placeholder = show ? 'Loading your mail index…' : basePlaceholder;
+      queryInput.placeholder = show ? msg : basePlaceholder;
     } else {
       loadingEl.hidden = !show;
+      if (show && loadingTextEl) loadingTextEl.textContent = msg;
     }
   }
 
@@ -185,9 +188,12 @@
       renderStatus(s);
 
       // 'loading' (cold load) and 'building' (rebuild) both mean the index isn't
-      // usable yet — keep the indicator up and don't search.
+      // usable yet — keep the indicator up (worded for which one) and don't search.
       const usable = s.state === 'ready' || s.state === 'empty';
-      if (!usable) return;
+      if (!usable) {
+        showLoadingHint(true, s.state === 'building');
+        return;
+      }
 
       ready = true;
       // Auto-run the typed query the first time the index is usable, and again
@@ -292,12 +298,9 @@
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(fitModalWindow);
     }).observe(document.body);
-    // Dismissal: clicking back into Thunderbird (window loses focus) closes it.
-    // Attach after a short settle so the window's own initial focus handoff
-    // can't immediately close it.
-    setTimeout(() => {
-      window.addEventListener('blur', () => window.close());
-    }, 400);
+    // Dismiss with Escape or by opening a result. (We deliberately do NOT close
+    // on window blur: GNOME/Wayland fires a blur when you start dragging the
+    // window, which made it vanish mid-move.)
   }
 
   // Show the (non-blocking) loading hint until the first status reply. The field

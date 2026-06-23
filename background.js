@@ -15,6 +15,9 @@
   // Cached document count reported by the worker (we can't read engine.size
   // synchronously across the worker boundary).
   let engineCount = 0;
+  // Last index-save error reported by the worker (null = saved OK). Surfaced in
+  // status so the Settings page can warn that the index won't survive a restart.
+  let saveError = null;
 
   // ---- Worker RPC ----
   // Shared request/response envelope for our workers: post {reqId, ...payload},
@@ -54,9 +57,9 @@
   const extractPosts = Array.from({ length: EXTRACT_WORKERS }, () => rpcWorker('lib/extract.worker.js'));
   let extractRR = 0;
   const extractor = {
-    run(mode, headerMeta, full, indexEncrypted) {
+    run(mode, headerMeta, full, indexEncrypted, maxBody) {
       const post = extractPosts[extractRR++ % extractPosts.length];
-      return post({ mode, headerMeta, full, indexEncrypted });
+      return post({ mode, headerMeta, full, indexEncrypted, maxBody });
     },
   };
 
@@ -85,6 +88,7 @@
       const r = await call('flush', meta || {});
       engineCount = r.count;
       headerOnly = r.headerOnly;
+      saveError = r.saveError || null;
     },
   };
 
@@ -104,6 +108,7 @@
       count: engineCount,
       headerOnly,
       updatedAt,
+      saveError,
     };
   }
 
@@ -120,6 +125,7 @@
           engineCount = r.count;
           headerOnly = r.headerOnly || 0;
           updatedAt = r.updatedAt;
+          saveError = r.saveError || null;
         } catch (e) {
           console.error('[OmniSearch] index load failed:', e);
         } finally {

@@ -9,6 +9,7 @@
   const searchUISpotlight = document.getElementById('searchUISpotlight');
   const includeSpamTrash = document.getElementById('includeSpamTrash');
   const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
+  const bodyIndexLimit = document.getElementById('bodyIndexLimit');
   const accountsEl = document.getElementById('accounts');
   const statusEl = document.getElementById('status');
   const progressEl = document.getElementById('progress');
@@ -83,6 +84,7 @@
     searchUIPopup.checked = !spotlight;
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
+    bodyIndexLimit.value = String(settings.bodyIndexLimit || 4000);
   }
 
   keepOpen.addEventListener('change', async () => {
@@ -120,6 +122,14 @@
     const settings = await getSettings();
     settings.indexEncryptedBodies = indexEncryptedBodies.checked;
     await messenger.storage.local.set({ [KEY]: settings });
+    showBanner('rebuild');
+  });
+
+  bodyIndexLimit.addEventListener('change', async () => {
+    const settings = await getSettings();
+    settings.bodyIndexLimit = parseInt(bodyIndexLimit.value, 10) || 4000;
+    await messenger.storage.local.set({ [KEY]: settings });
+    // Changes how much body text is extracted → needs a full rebuild to apply.
     showBanner('rebuild');
   });
 
@@ -194,6 +204,14 @@
     }
     if (s.updatedAt) parts.push(`updated ${new Date(s.updatedAt).toLocaleString()}`);
     statusEl.textContent = parts.join(' · ');
+    // Surface a save failure prominently — this is why the index re-builds every
+    // session instead of loading from disk.
+    if (s.saveError) {
+      const warn = document.createElement('div');
+      warn.style.cssText = 'margin-top:8px;color:#b3261e;font-weight:600';
+      warn.textContent = `⚠ Index built but couldn't be saved (${s.saveError}). It will re-index next time.`;
+      statusEl.appendChild(warn);
+    }
   }
 
   async function refreshStatus() {

@@ -112,6 +112,22 @@
       decrypted content will then be stored unencrypted in the index.
     </p>
 
+    <label style="margin-top: 12px">
+      <span>Indexed body length per email:&nbsp;</span>
+      <select id="bodyIndexLimit">
+        <option value="2000">Short (2,000 characters)</option>
+        <option value="4000">Default (4,000 characters)</option>
+        <option value="8000">More (8,000 characters)</option>
+        <option value="20000">Full (20,000 characters)</option>
+      </select>
+    </label>
+    <p class="hint indent">
+      How much of each email's body is indexed (after quoted replies are removed).
+      Smaller keeps the index lighter, so it loads faster and uses less memory —
+      important on machines with limited RAM. Larger makes more of very long
+      emails searchable. Changing this needs a rebuild.
+    </p>
+
     <div id="applyBanner" class="banner" hidden>
       <span id="applyBannerText"></span>
       <span class="banner-actions">

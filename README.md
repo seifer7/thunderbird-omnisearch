@@ -104,6 +104,7 @@ gear → Options.
 | Accounts to index | all included | Per-account include/exclude (opt-out: new accounts are included automatically). |
 | Include Junk (Spam) and Trash folders | off | Index those folders too. |
 | Index the contents of encrypted emails | off | Index decrypted bodies of OpenPGP/S-MIME mail (stored unencrypted in the index). |
+| Indexed body length per email | 4,000 chars | How much of each email's body is indexed (after quoted replies are stripped). Smaller = lighter index, faster cold load, less memory; larger = more of long emails searchable. Needs a rebuild to apply. |
 | Rebuild index | — | Re-index all mail from scratch. |
 | Verify & repair | — | Reconcile the index against your folders (add missing, remove stale). |
 
