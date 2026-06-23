@@ -67,6 +67,16 @@
     </label>
     <p class="hint indent">When off (the default), the popup closes as soon as you open a result.</p>
 
+    <label style="margin-top: 12px">
+      <input type="checkbox" id="keepWarm" />
+      <span>Keep the search index loaded for instant results</span>
+    </label>
+    <p class="hint indent">
+      Off by default. When on, OmniSearch keeps its index in memory so reopening
+      search is instant instead of briefly reloading. Uses a little more memory
+      and battery in the background.
+    </p>
+
     <h1>Accounts to index</h1>
     <div id="accounts"></div>
     <p class="hint">Unchecked accounts are excluded from search.</p>

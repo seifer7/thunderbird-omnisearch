@@ -17,27 +17,48 @@
   let engineCount = 0;
 
   // ---- Worker RPC ----
-  // The engine runs in lib/engine.worker.js. Every call posts a request tagged
-  // with a reqId and resolves when the worker echoes that id back.
-  const worker = new Worker('lib/engine.worker.js');
-  const pending = new Map();
-  let nextReqId = 1;
-  worker.onmessage = (e) => {
-    const { reqId, ok, result, error } = e.data;
-    const resolver = pending.get(reqId);
-    if (!resolver) return;
-    pending.delete(reqId);
-    if (ok) resolver.resolve(result);
-    else resolver.reject(new Error(error));
-  };
-  worker.onerror = (e) => console.error('[OmniSearch] worker error:', e.message || e);
-  function call(cmd, payload) {
-    const reqId = nextReqId++;
-    return new Promise((resolve, reject) => {
-      pending.set(reqId, { resolve, reject });
-      worker.postMessage({ reqId, cmd, ...payload });
-    });
+  // Shared request/response envelope for our workers: post {reqId, ...payload},
+  // resolve when the worker echoes {reqId, ok, result|error} back.
+  function rpcWorker(url) {
+    const w = new Worker(url);
+    const pending = new Map();
+    let nextReqId = 1;
+    w.onmessage = (e) => {
+      const { reqId, ok, result, error } = e.data;
+      const resolver = pending.get(reqId);
+      if (!resolver) return;
+      pending.delete(reqId);
+      if (ok) resolver.resolve(result);
+      else resolver.reject(new Error(error));
+    };
+    w.onerror = (e) => console.error('[OmniSearch] worker error:', e.message || e);
+    return function post(payload) {
+      const reqId = nextReqId++;
+      return new Promise((resolve, reject) => {
+        pending.set(reqId, { resolve, reject });
+        w.postMessage({ reqId, ...payload });
+      });
+    };
   }
+
+  // The engine (index + persistence) lives in one worker.
+  const enginePost = rpcWorker('lib/engine.worker.js');
+  function call(cmd, payload) {
+    return enginePost({ cmd, ...payload });
+  }
+
+  // Pool of extractor workers for the CPU-heavy text extraction during a rebuild
+  // — sized to the machine, so HTML stripping runs across cores. Calls are
+  // round-robined; each worker queues its own requests.
+  const EXTRACT_WORKERS = Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
+  const extractPosts = Array.from({ length: EXTRACT_WORKERS }, () => rpcWorker('lib/extract.worker.js'));
+  let extractRR = 0;
+  const extractor = {
+    run(mode, headerMeta, full, indexEncrypted) {
+      const post = extractPosts[extractRR++ % extractPosts.length];
+      return post({ mode, headerMeta, full, indexEncrypted });
+    },
+  };
 
   // Async stand-in for the old in-process SearchEngine. fullBuild/events talk to
   // this; each method updates the cached count from the worker's reply.
@@ -121,7 +142,7 @@
     headerOnly = 0;
     await engineProxy.reset();
     try {
-      const result = await OmniIndexer.fullBuild(engineProxy, (fraction, _count, ho, total) => {
+      const result = await OmniIndexer.fullBuild(engineProxy, extractor, (fraction, _count, ho, total) => {
         buildProgress = fraction;
         headerOnly = ho;
         buildTotal = total || 0;
@@ -199,6 +220,31 @@
   // the reserved "_execute_action" command, which opens that same popup
   // natively — so no JS is needed to open it.
 
+  // ---- Keep the index warm (optional) ----
+  // The index lives in the worker, which dies when the event page suspends —
+  // causing a cold reload on the next popup. When the user enables keepWarm, a
+  // short repeating alarm keeps the page (and worker) alive so reopening is
+  // instant. Best-effort: trades a little memory/battery for no cold start.
+  const KEEPALIVE_ALARM = 'omnisearch-keepwarm';
+  async function keepWarmEnabled() {
+    try {
+      const r = await messenger.storage.local.get('settings');
+      return !!(r.settings && r.settings.keepWarm);
+    } catch (e) {
+      return false;
+    }
+  }
+  async function applyKeepWarm() {
+    try {
+      await messenger.alarms.clear(KEEPALIVE_ALARM);
+      if (await keepWarmEnabled()) {
+        messenger.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.4 });
+      }
+    } catch (e) {
+      console.error('[OmniSearch] keepWarm setup failed:', e);
+    }
+  }
+
   // Register everything defensively: an unsupported API on a given Thunderbird
   // build must not abort the rest (which is what left the button dead before).
   function safe(label, fn) {
@@ -226,6 +272,24 @@
   );
 
   safe('registerEvents', () => OmniEvents.registerEvents(controller));
+
+  // Warm the index when Thunderbird starts a session, so the first popup is fast.
+  safe('runtime.onStartup', () =>
+    messenger.runtime.onStartup.addListener(() => void ensureLoaded()),
+  );
+
+  // Keepalive alarm handler + (re)apply when the setting changes.
+  safe('alarms.onAlarm', () =>
+    messenger.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === KEEPALIVE_ALARM) void ensureLoaded();
+    }),
+  );
+  safe('storage.onChanged', () =>
+    messenger.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.settings) void applyKeepWarm();
+    }),
+  );
+  void applyKeepWarm();
 
   console.log('[OmniSearch] background loaded');
   void ensureLoaded();

@@ -14,10 +14,12 @@
     "messagesRead",
     "accountsRead",
     "storage",
-    "unlimitedStorage"
+    "unlimitedStorage",
+    "alarms"
   ],
   "background": {
     "scripts": [
+      "lib/extract.js",
       "lib/indexer.js",
       "lib/events.js",
       "background.js"

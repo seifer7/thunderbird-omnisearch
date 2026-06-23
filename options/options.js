@@ -4,6 +4,7 @@
 (function () {
   const KEY = 'settings';
   const keepOpen = document.getElementById('keepOpen');
+  const keepWarm = document.getElementById('keepWarm');
   const includeSpamTrash = document.getElementById('includeSpamTrash');
   const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
   const accountsEl = document.getElementById('accounts');
@@ -74,6 +75,7 @@
   async function loadSettings() {
     const settings = await getSettings();
     keepOpen.checked = !!settings.keepOpenAfterResult;
+    keepWarm.checked = !!settings.keepWarm;
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
   }
@@ -81,6 +83,14 @@
   keepOpen.addEventListener('change', async () => {
     const settings = await getSettings();
     settings.keepOpenAfterResult = keepOpen.checked;
+    await messenger.storage.local.set({ [KEY]: settings });
+  });
+
+  keepWarm.addEventListener('change', async () => {
+    const settings = await getSettings();
+    settings.keepWarm = keepWarm.checked;
+    // The background watches storage.onChanged and (de)registers the keepalive
+    // alarm itself, so no extra message is needed.
     await messenger.storage.local.set({ [KEY]: settings });
   });
 

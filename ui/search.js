@@ -33,18 +33,18 @@
     return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
   }
 
-  // The spinner shows from popup-open until the FIRST status reply arrives. The
-  // background only answers status once the index has finished loading, so that
-  // first reply is our definitive "ready" signal — we then clear the spinner and
-  // enable the field, permanently for this popup session.
+  // The field is usable immediately (type-ahead): you can start typing while the
+  // index loads/builds. The "Loading…" indicator stays up until the index is
+  // genuinely ready — meaning it has finished loading AND any (re)build is done
+  // AND the first results for a typed query are actually on screen. That last
+  // part is what closes the visible gap: we never hide the indicator before
+  // search output appears. See onReady() in refreshStatus().
   let ready = false;
-  function markReady() {
+  // Safety net only: unstick the indicator if the background never answers.
+  function forceReady() {
     if (ready) return;
     ready = true;
     loadingEl.hidden = true;
-    queryInput.disabled = false;
-    queryInput.focus();
-    if (queryInput.value.trim()) void runSearch();
   }
 
   function renderStatus(s) {
@@ -104,6 +104,11 @@
 
   let searchSeq = 0;
   async function runSearch() {
+    // Before the index is ready we don't search — the query just sits in the
+    // field. refreshStatus() runs it the instant the index becomes ready, so a
+    // word typed during load/indexing searches automatically (no competing
+    // in-flight request while loading).
+    if (!ready) return;
     const query = queryInput.value;
     const seq = ++searchSeq;
     let reply;
@@ -118,13 +123,34 @@
     else emptyEl.textContent = 'No response from the index.';
   }
 
+  let gotReply = false;
+  let wasBuilding = false;
   async function refreshStatus() {
     try {
       const reply = await send({ type: 'status' });
-      if (reply && reply.type === 'status') {
-        markReady(); // first reply means the index has loaded — clear the spinner
-        renderStatus(reply.status);
+      if (!reply || reply.type !== 'status') return;
+      gotReply = true;
+      renderStatus(reply.status);
+
+      const building = reply.status.state === 'building';
+      if (building) {
+        wasBuilding = true;
+        return; // still loading/indexing — keep the indicator up
       }
+
+      if (!ready) {
+        // First moment the index is usable. Run any typed query and only hide
+        // the indicator once results are on screen, so there's no gap between
+        // "Loading…" disappearing and search actually working.
+        ready = true;
+        if (queryInput.value.trim()) await runSearch();
+        loadingEl.hidden = true;
+      } else if (wasBuilding) {
+        // A (re)build that ran while the popup was open just finished — refresh
+        // the results for the current query.
+        if (queryInput.value.trim()) void runSearch();
+      }
+      wasBuilding = false;
     } catch (e) {
       statusEl.textContent = 'Background not responding — reload the add-on (Remove + Load again).';
     }
@@ -192,13 +218,16 @@
     messenger.runtime.openOptionsPage();
   });
 
-  // Show the spinner and disable the field until the first status reply (which
-  // the background only sends once the index has loaded).
+  // Show the (non-blocking) loading hint until the first status reply. The field
+  // stays enabled and focused the whole time so the user can type immediately.
   loadingEl.hidden = false;
-  queryInput.disabled = true;
-  // Safety net: never leave the field stuck if the background somehow never
-  // answers — re-enable after a few seconds so the user can still try.
-  setTimeout(markReady, 8000);
+  queryInput.focus();
+  // Safety net: only force-clear the hint if the background never answers at
+  // all. If it's replying (e.g. "building" during a long rebuild) we leave the
+  // indicator up until the index is genuinely ready.
+  setTimeout(() => {
+    if (!gotReply) forceReady();
+  }, 8000);
   setInterval(() => void refreshStatus(), 500);
   void refreshStatus();
 })();
