@@ -164,6 +164,11 @@
       return;
     }
 
+    if (s.state === 'loading') {
+      statusEl.textContent = 'Loading index…';
+      return;
+    }
+
     if (s.state === 'empty') {
       statusEl.textContent = 'No index yet — click Rebuild to index your mail.';
       return;

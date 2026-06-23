@@ -38,9 +38,11 @@
   // genuinely ready — meaning it has finished loading AND any (re)build is done
   // AND the first results for a typed query are actually on screen. That last
   // part is what closes the visible gap: we never hide the indicator before
-  // search output appears. See onReady() in refreshStatus().
+  // search output appears. See refreshStatus() for the readiness logic.
   let ready = false;
-  // Safety net only: unstick the indicator if the background never answers.
+  // Safety net only: unstick the indicator if the background never answers at
+  // all (it normally replies 'loading' within ~500ms, so this won't fire during
+  // a slow cold load). Does not block the readiness-driven auto-search.
   function forceReady() {
     if (ready) return;
     ready = true;
@@ -48,6 +50,13 @@
   }
 
   function renderStatus(s) {
+    if (s.state === 'loading') {
+      // The #loading banner already says "Loading your mail index…"; keep the
+      // status line clear so we don't flash a misleading "0 messages indexed".
+      progressEl.hidden = true;
+      statusEl.textContent = '';
+      return;
+    }
     if (s.state === 'building') {
       progressEl.hidden = false;
       progressEl.value = s.progress || 0;
@@ -124,33 +133,31 @@
   }
 
   let gotReply = false;
-  let wasBuilding = false;
+  let searchedUpdatedAt = null;
   async function refreshStatus() {
     try {
       const reply = await send({ type: 'status' });
       if (!reply || reply.type !== 'status') return;
       gotReply = true;
-      renderStatus(reply.status);
+      const s = reply.status;
+      renderStatus(s);
 
-      const building = reply.status.state === 'building';
-      if (building) {
-        wasBuilding = true;
-        return; // still loading/indexing — keep the indicator up
-      }
+      // 'loading' (cold load) and 'building' (rebuild) both mean the index isn't
+      // usable yet — keep the indicator up and don't search.
+      const usable = s.state === 'ready' || s.state === 'empty';
+      if (!usable) return;
 
-      if (!ready) {
-        // First moment the index is usable. Run any typed query and only hide
-        // the indicator once results are on screen, so there's no gap between
-        // "Loading…" disappearing and search actually working.
-        ready = true;
-        if (queryInput.value.trim()) await runSearch();
-        loadingEl.hidden = true;
-      } else if (wasBuilding) {
-        // A (re)build that ran while the popup was open just finished — refresh
-        // the results for the current query.
-        if (queryInput.value.trim()) void runSearch();
+      ready = true;
+      // Auto-run the typed query the first time the index is usable, and again
+      // whenever its contents change (updatedAt advances after a (re)build or new
+      // mail). This shows results automatically no matter how long the load took,
+      // without relying on a timer or on having observed the 'building' phase.
+      const u = s.updatedAt || 0;
+      if (queryInput.value.trim() && u !== searchedUpdatedAt) {
+        searchedUpdatedAt = u;
+        await runSearch(); // keep the indicator up until results are on screen
       }
-      wasBuilding = false;
+      loadingEl.hidden = true;
     } catch (e) {
       statusEl.textContent = 'Background not responding — reload the add-on (Remove + Load again).';
     }

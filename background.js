@@ -92,6 +92,13 @@
     if (building) {
       return { state: 'building', count: engineCount, total: buildTotal, headerOnly, progress: buildProgress, updatedAt };
     }
+    // Not yet finished loading the persisted index. Report this explicitly (and
+    // immediately — see handle('status')) so the popup keeps the "Loading…"
+    // indicator up and knows precisely when the index becomes usable, instead of
+    // the background going silent until the load completes.
+    if (!loaded) {
+      return { state: 'loading', count: engineCount, headerOnly, updatedAt };
+    }
     return {
       state: engineCount > 0 ? 'ready' : 'empty',
       count: engineCount,
@@ -194,10 +201,10 @@
         await ensureLoaded();
         return { type: 'results', results: await engineProxy.search(msg.query, msg.limit || 100) };
       case 'status':
-        // Await the load so the very first status reply only arrives once the
-        // index is ready — the popup shows its spinner until then, then clears
-        // it for good.
-        await ensureLoaded();
+        // Reply immediately (don't await the load): status() reports 'loading'
+        // until the index is ready, so the popup keeps getting replies during a
+        // slow cold load rather than the background going silent for seconds.
+        void ensureLoaded();
         return { type: 'status', status: status() };
       case 'rebuild':
         await ensureLoaded();
