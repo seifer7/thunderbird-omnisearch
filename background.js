@@ -252,6 +252,71 @@
     }
   }
 
+  // ---- Search UI mode (toolbar popup vs Spotlight-style window) ----
+  // 'popup' (default): the toolbar button opens ui/search.html anchored to it.
+  // 'spotlight': clear the action popup so a click / the Alt+S command fires
+  // action.onClicked, which opens ui/search.html as a centered standalone window
+  // (reuses the exact same page). One setting drives both button and shortcut.
+  const SPOTLIGHT_W = 720;
+  // Start collapsed (about the height of the search field); the page resizes the
+  // window to fit results as they appear (see fitModalWindow in ui/search.js).
+  const SPOTLIGHT_H = 120;
+  let spotlightWindowId = null;
+  async function searchUIMode() {
+    try {
+      const r = await messenger.storage.local.get('settings');
+      return r.settings && r.settings.searchUI === 'spotlight' ? 'spotlight' : 'popup';
+    } catch (e) {
+      return 'popup';
+    }
+  }
+  async function applySearchUI() {
+    try {
+      const mode = await searchUIMode();
+      await messenger.action.setPopup({ popup: mode === 'spotlight' ? '' : 'ui/search.html' });
+    } catch (e) {
+      console.error('[OmniSearch] search UI mode setup failed:', e);
+    }
+  }
+
+  // Open (or focus) the Spotlight search window, centered in the upper third of
+  // the focused Thunderbird window.
+  async function openSpotlight() {
+    if (spotlightWindowId != null) {
+      try {
+        await messenger.windows.update(spotlightWindowId, { focused: true });
+        return;
+      } catch (e) {
+        spotlightWindowId = null; // stale id — recreate below
+      }
+    }
+    let pos = {};
+    try {
+      const ref = await messenger.windows.getLastFocused();
+      if (ref && Number.isFinite(ref.left) && Number.isFinite(ref.width)) {
+        pos = {
+          left: Math.round(ref.left + (ref.width - SPOTLIGHT_W) / 2),
+          top: Math.round(ref.top + Math.max(0, (ref.height - SPOTLIGHT_H) / 3)),
+        };
+      }
+    } catch (e) {
+      /* no reference bounds — let the WM place it */
+    }
+    try {
+      const win = await messenger.windows.create({
+        type: 'popup',
+        url: 'ui/search.html#modal',
+        width: SPOTLIGHT_W,
+        height: SPOTLIGHT_H,
+        allowScriptsToClose: true,
+        ...pos,
+      });
+      spotlightWindowId = win.id;
+    } catch (e) {
+      console.error('[OmniSearch] could not open Spotlight window:', e);
+    }
+  }
+
   // Register everything defensively: an unsupported API on a given Thunderbird
   // build must not abort the rest (which is what left the button dead before).
   function safe(label, fn) {
@@ -291,12 +356,27 @@
       if (alarm.name === KEEPALIVE_ALARM) void ensureLoaded();
     }),
   );
+  // In Spotlight mode the popup is cleared, so clicking the button (and the Alt+S
+  // _execute_action command, when no popup is set) fires onClicked → open window.
+  safe('action.onClicked', () =>
+    messenger.action.onClicked.addListener(() => void openSpotlight()),
+  );
+  safe('windows.onRemoved', () =>
+    messenger.windows.onRemoved.addListener((id) => {
+      if (id === spotlightWindowId) spotlightWindowId = null;
+    }),
+  );
+
   safe('storage.onChanged', () =>
     messenger.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && changes.settings) void applyKeepWarm();
+      if (area === 'local' && changes.settings) {
+        void applyKeepWarm();
+        void applySearchUI();
+      }
     }),
   );
   void applyKeepWarm();
+  void applySearchUI();
 
   console.log('[OmniSearch] background loaded');
   void ensureLoaded();

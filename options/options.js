@@ -5,6 +5,8 @@
   const KEY = 'settings';
   const keepOpen = document.getElementById('keepOpen');
   const keepWarm = document.getElementById('keepWarm');
+  const searchUIPopup = document.getElementById('searchUIPopup');
+  const searchUISpotlight = document.getElementById('searchUISpotlight');
   const includeSpamTrash = document.getElementById('includeSpamTrash');
   const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
   const accountsEl = document.getElementById('accounts');
@@ -76,6 +78,9 @@
     const settings = await getSettings();
     keepOpen.checked = !!settings.keepOpenAfterResult;
     keepWarm.checked = !!settings.keepWarm;
+    const spotlight = settings.searchUI === 'spotlight';
+    searchUISpotlight.checked = spotlight;
+    searchUIPopup.checked = !spotlight;
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
   }
@@ -85,6 +90,16 @@
     settings.keepOpenAfterResult = keepOpen.checked;
     await messenger.storage.local.set({ [KEY]: settings });
   });
+
+  async function saveSearchUI() {
+    const settings = await getSettings();
+    settings.searchUI = searchUISpotlight.checked ? 'spotlight' : 'popup';
+    // The background watches storage.onChanged and flips the toolbar button /
+    // shortcut between the anchored popup and the Spotlight window itself.
+    await messenger.storage.local.set({ [KEY]: settings });
+  }
+  searchUIPopup.addEventListener('change', saveSearchUI);
+  searchUISpotlight.addEventListener('change', saveSearchUI);
 
   keepWarm.addEventListener('change', async () => {
     const settings = await getSettings();

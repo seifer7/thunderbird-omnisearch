@@ -137,6 +137,12 @@ ul#results {
   max-height: 460px;
   overflow-y: auto;
 }
+/* Centered standalone window (ui/search.html#modal): fill the window width and
+   take natural (content) height — search.js resizes the window itself so it
+   starts at just the search field and grows as results come in (#results keeps
+   its max-height cap and scrolls once long). */
+html.modal body { width: 100%; }
+
 li.result {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);

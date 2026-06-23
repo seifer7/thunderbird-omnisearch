@@ -11,6 +11,26 @@
   const emptyEl = $('empty');
   const loadingEl = $('loading');
 
+  // Launched as the centered standalone window (background opens
+  // ui/search.html#modal) rather than the toolbar-anchored popup. Enables
+  // window-dismissal affordances (Escape/blur close) and self-resizing so the
+  // window grows from just the search field to fit results. The <html> also
+  // carries class "modal" for layout (see init).
+  const isModal = location.hash === '#modal';
+  let modalWinId = null;
+
+  // Resize the window to fit its content (header + results), capped, so it grows
+  // as results appear and shrinks back when the query is cleared. Driven by a
+  // ResizeObserver on the body; updating the window height doesn't change body
+  // height (natural/content-sized), so there's no feedback loop.
+  function fitModalWindow() {
+    if (!isModal || modalWinId == null) return;
+    const maxContent = Math.min(560, Math.round((screen.availHeight || 900) * 0.7));
+    const content = Math.min(document.body.scrollHeight, maxContent);
+    const chrome = Math.max(0, window.outerHeight - window.innerHeight);
+    messenger.windows.update(modalWinId, { height: content + chrome + 2 }).catch(() => {});
+  }
+
   function send(msg) {
     return messenger.runtime.sendMessage(msg);
   }
@@ -182,12 +202,18 @@
     queryInput.focus();
   });
 
-  // Esc clears the field (when it has text) before the popup would close.
+  // Esc clears the field when it has text; when empty, the anchored popup closes
+  // natively, but the Spotlight window must close itself.
   queryInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && queryInput.value) {
-      e.stopPropagation();
-      e.preventDefault();
-      clearBtn.click();
+    if (e.key === 'Escape') {
+      if (queryInput.value) {
+        e.stopPropagation();
+        e.preventDefault();
+        clearBtn.click();
+      } else if (isModal) {
+        e.preventDefault();
+        window.close();
+      }
       return;
     }
     // Tab (or Down) from the search field jumps to the first result.
@@ -224,6 +250,30 @@
   $('settings').addEventListener('click', () => {
     messenger.runtime.openOptionsPage();
   });
+
+  if (isModal) {
+    document.documentElement.classList.add('modal');
+    // Learn our own window id, then size to fit and keep fitting as content
+    // (results) changes.
+    messenger.windows
+      .getCurrent()
+      .then((w) => {
+        modalWinId = w.id;
+        fitModalWindow();
+      })
+      .catch(() => {});
+    let raf = 0;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(fitModalWindow);
+    }).observe(document.body);
+    // Dismissal: clicking back into Thunderbird (window loses focus) closes it.
+    // Attach after a short settle so the window's own initial focus handoff
+    // can't immediately close it.
+    setTimeout(() => {
+      window.addEventListener('blur', () => window.close());
+    }, 400);
+  }
 
   // Show the (non-blocking) loading hint until the first status reply. The field
   // stays enabled and focused the whole time so the user can type immediately.
