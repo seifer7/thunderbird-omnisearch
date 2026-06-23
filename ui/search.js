@@ -18,17 +18,36 @@
   // carries class "modal" for layout (see init).
   const isModal = location.hash === '#modal';
   let modalWinId = null;
+  // The window's opening height (captured at init). The window never shrinks
+  // below this, so the empty/loading state never triggers a resize — it only
+  // grows to fit real results. Prevents the open-time resize flicker on macOS.
+  let modalMinHeight = 0;
 
   // Resize the window to fit its content (header + results), capped, so it grows
-  // as results appear and shrinks back when the query is cleared. Driven by a
-  // ResizeObserver on the body; updating the window height doesn't change body
-  // height (natural/content-sized), so there's no feedback loop.
+  // as results appear and shrinks back (no lower than the opening size) when the
+  // query is cleared. Driven by a ResizeObserver on the body; updating the window
+  // height doesn't change body height (natural/content-sized), so no feedback loop.
   function fitModalWindow() {
     if (!isModal || modalWinId == null) return;
     const maxContent = Math.min(560, Math.round((screen.availHeight || 900) * 0.7));
     const content = Math.min(document.body.scrollHeight, maxContent);
     const chrome = Math.max(0, window.outerHeight - window.innerHeight);
-    messenger.windows.update(modalWinId, { height: content + chrome + 2 }).catch(() => {});
+    const target = Math.max(modalMinHeight, content + chrome + 2);
+    if (Math.abs(target - window.outerHeight) <= 4) return; // ignore sub-pixel churn
+    messenger.windows.update(modalWinId, { height: target }).catch(() => {});
+  }
+
+  // Show the "loading the index" hint. In the toolbar popup this is the #loading
+  // banner; in the centered window we use the field's placeholder instead so the
+  // hint never changes the window's height (which would cause an open-time
+  // grow-then-shrink flicker).
+  const basePlaceholder = queryInput.placeholder;
+  function showLoadingHint(show) {
+    if (isModal) {
+      queryInput.placeholder = show ? 'Loading your mail index…' : basePlaceholder;
+    } else {
+      loadingEl.hidden = !show;
+    }
   }
 
   function send(msg) {
@@ -66,7 +85,7 @@
   function forceReady() {
     if (ready) return;
     ready = true;
-    loadingEl.hidden = true;
+    showLoadingHint(false);
   }
 
   function renderStatus(s) {
@@ -177,7 +196,7 @@
         searchedUpdatedAt = u;
         await runSearch(); // keep the indicator up until results are on screen
       }
-      loadingEl.hidden = true;
+      showLoadingHint(false);
     } catch (e) {
       statusEl.textContent = 'Background not responding — reload the add-on (Remove + Load again).';
     }
@@ -253,6 +272,9 @@
 
   if (isModal) {
     document.documentElement.classList.add('modal');
+    // Floor the window at its opening size so the empty/loading state never
+    // resizes (only real results grow it) — kills the open-time flicker.
+    modalMinHeight = window.outerHeight || 0;
     // Learn our own window id, then size to fit and keep fitting as content
     // (results) changes.
     messenger.windows
@@ -277,7 +299,7 @@
 
   // Show the (non-blocking) loading hint until the first status reply. The field
   // stays enabled and focused the whole time so the user can type immediately.
-  loadingEl.hidden = false;
+  showLoadingHint(true);
   queryInput.focus();
   // Safety net: only force-clear the hint if the background never answers at
   // all. If it's replying (e.g. "building" during a long rebuild) we leave the
