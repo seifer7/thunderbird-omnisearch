@@ -27,14 +27,27 @@
   // as results appear and shrinks back (no lower than the opening size) when the
   // query is cleared. Driven by a ResizeObserver on the body; updating the window
   // height doesn't change body height (natural/content-sized), so no feedback loop.
-  function fitModalWindow() {
+  async function fitModalWindow() {
     if (!isModal || modalWinId == null) return;
     const maxContent = Math.min(560, Math.round((screen.availHeight || 900) * 0.7));
     const content = Math.min(document.body.scrollHeight, maxContent);
     const chrome = Math.max(0, window.outerHeight - window.innerHeight);
     const target = Math.max(modalMinHeight, content + chrome + 2);
     if (Math.abs(target - window.outerHeight) <= 4) return; // ignore sub-pixel churn
-    messenger.windows.update(modalWinId, { height: target }).catch(() => {});
+    // Recentre vertically over the main Thunderbird window so the window stays
+    // centered at its new height (grows/shrinks symmetrically about the centre)
+    // rather than only downward. getLastFocused() is no good here — we're the
+    // focused window now — so find the main ('normal') window.
+    const update = { height: target };
+    try {
+      const main = (await messenger.windows.getAll()).find(
+        (w) => w.type === 'normal' && Number.isFinite(w.top) && Number.isFinite(w.height),
+      );
+      if (main) update.top = Math.max(main.top, Math.round(main.top + (main.height - target) / 2));
+    } catch (e) {
+      /* no reference bounds — just resize in place */
+    }
+    messenger.windows.update(modalWinId, update).catch(() => {});
   }
 
   // Show the "loading the index" hint. In the toolbar popup this is the #loading

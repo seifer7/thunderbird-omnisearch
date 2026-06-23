@@ -279,8 +279,9 @@
     }
   }
 
-  // Open (or focus) the Spotlight search window, centered in the upper third of
-  // the focused Thunderbird window.
+  // Open (or focus) the centered search window. It opens vertically centered for
+  // its collapsed height; as results expand it, ui/search.js recentres it so the
+  // expanded window stays vertically centered (its middle pinned to screen centre).
   async function openSpotlight() {
     if (spotlightWindowId != null) {
       try {
@@ -296,7 +297,7 @@
       if (ref && Number.isFinite(ref.left) && Number.isFinite(ref.width)) {
         pos = {
           left: Math.round(ref.left + (ref.width - SPOTLIGHT_W) / 2),
-          top: Math.round(ref.top + Math.max(0, (ref.height - SPOTLIGHT_H) / 3)),
+          top: Math.round(ref.top + Math.max(0, (ref.height - SPOTLIGHT_H) / 2)),
         };
       }
     } catch (e) {
