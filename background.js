@@ -258,9 +258,14 @@
   // action.onClicked, which opens ui/search.html as a centered standalone window
   // (reuses the exact same page). One setting drives both button and shortcut.
   const SPOTLIGHT_W = 720;
-  // Start collapsed (about the height of the search field); the page resizes the
-  // window to fit results as they appear (see fitModalWindow in ui/search.js).
+  // Start collapsed (about the height of the search field); the page grows the
+  // window downward to fit results as they appear (see fitModalWindow in
+  // ui/search.js). It does NOT reposition while growing — to avoid a jerky
+  // moving window — so we anchor the top up-front for the expanded height
+  // (SPOTLIGHT_EXPANDED_H): the collapsed field opens high, then results fill
+  // downward to land roughly vertically centered.
   const SPOTLIGHT_H = 120;
+  const SPOTLIGHT_EXPANDED_H = 560; // must track the height cap in fitModalWindow
   let spotlightWindowId = null;
   async function searchUIMode() {
     try {
@@ -279,9 +284,9 @@
     }
   }
 
-  // Open (or focus) the centered search window. It opens vertically centered for
-  // its collapsed height; as results expand it, ui/search.js recentres it so the
-  // expanded window stays vertically centered (its middle pinned to screen centre).
+  // Open (or focus) the centered search window. The top is anchored for the
+  // expanded height so the field opens high and grows straight down to a roughly
+  // centered results view — the window never moves once open.
   async function openSpotlight() {
     if (spotlightWindowId != null) {
       try {
@@ -297,7 +302,7 @@
       if (ref && Number.isFinite(ref.left) && Number.isFinite(ref.width)) {
         pos = {
           left: Math.round(ref.left + (ref.width - SPOTLIGHT_W) / 2),
-          top: Math.round(ref.top + Math.max(0, (ref.height - SPOTLIGHT_H) / 2)),
+          top: Math.round(ref.top + Math.max(0, (ref.height - SPOTLIGHT_EXPANDED_H) / 2)),
         };
       }
     } catch (e) {
