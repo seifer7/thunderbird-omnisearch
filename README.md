@@ -17,19 +17,32 @@ silently drops messages, this index keeps itself correct with live updates and a
   over the body.
 - **Typo-tolerant fuzzy** matching and **prefix ("as you type")** search.
 - An **independent index that bypasses Gloda**, so it finds mail Gloda misses.
+- **Quoted replies are stripped** before indexing, so a long thread isn't matched
+  once per reply — the quoted text stays findable via the original message.
+  Handles `>` quoting, "On … wrote:" attributions, Outlook `From:/Sent:` headers
+  and forwarded-message banners (incl. German/French/Spanish).
+- **No duplicate results across Gmail labels.** A message that Gmail/IMAP shows in
+  several places (e.g. **All Mail** *and* Inbox/Archive/Sent) appears **once**,
+  with every folder it lives in listed on the result (e.g. `Inbox · All Mail`).
 
-**The search popup**
-- Opens as a **native popup panel** (no browser address bar) from the toolbar
-  button or the **`Alt+S`** keyboard shortcut.
+**Two ways to search** (pick one in Settings → *Search interface*)
+- **Toolbar popup** (default): a **native popup panel** dropping down from the
+  toolbar button.
+- **Centered window**: a Spotlight-style search box in the middle of the screen
+  that grows as results appear; press **Esc** to dismiss it.
+
+Either opens from the toolbar button or the **`Alt+S`** keyboard shortcut, and:
 - **Keyboard navigation**: type a query, press **Tab** (or **↓**) to jump to the
   first result, **Tab / ↓ / ↑** to move through results, **Enter** to open the
   selected message, **Esc** to clear the field.
 - A **clear (×)** button, and a focus outline that uses your **theme accent**.
-- Results show sender, date, folder and a snippet; the focused result is
+- Results show sender, date, folder(s) and a snippet; the focused result is
   highlighted.
 - Clicking or pressing Enter **opens the message** (resolved by its stable RFC
-  Message-ID, so it works even after a restart). The popup then closes —
+  Message-ID, so it works even after a restart). The window then closes —
   unless you turn on "keep open" in Settings.
+- Clicking the **settings cog** opens the options page and closes the search
+  window.
 - Badges flag results indexed **`header-only`** (body not downloaded) or
   **`encrypted`** (see Privacy).
 
@@ -100,7 +113,9 @@ gear → Options.
 
 | Setting | Default | Effect |
 |---------|---------|--------|
+| Search interface | Toolbar popup | Choose the **toolbar popup** or a **centered window** (Spotlight-style, opens mid-screen). |
 | Keep the search popup open after opening a result | off | Leave the popup open instead of closing when you open a message. |
+| Keep the search index loaded for instant results | off | Hold the index in memory so reopening search is instant instead of briefly reloading. Uses a little more background memory/battery. |
 | Accounts to index | all included | Per-account include/exclude (opt-out: new accounts are included automatically). |
 | Include Junk (Spam) and Trash folders | off | Index those folders too. |
 | Index the contents of encrypted emails | off | Index decrypted bodies of OpenPGP/S-MIME mail (stored unencrypted in the index). |
