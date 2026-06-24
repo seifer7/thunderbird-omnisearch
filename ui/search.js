@@ -17,9 +17,14 @@
   // field to fit results. The <html> also carries class "modal" for layout.
   const isModal = location.hash === '#modal';
   let modalWinId = null;
-  // The window's opening height (captured at init). The window never shrinks
-  // below this, so the empty/loading state never triggers a resize — it only
-  // grows to fit real results. Prevents the open-time resize flicker on macOS.
+  // The window's opening height. Must track SPOTLIGHT_H in background.js. The
+  // window never shrinks below this, so the empty/loading state never triggers a
+  // resize — it only grows to fit real results. We use a fixed constant rather
+  // than reading window.outerHeight at init because on GNOME/Wayland the
+  // compositor may not have applied the requested open height yet when this runs;
+  // a 0/stale read there would collapse the floor and let the empty state resize
+  // on open — the flicker. See window-positioning notes.
+  const MODAL_MIN_H = 140;
   let modalMinHeight = 0;
 
   // Resize the window to fit its content (header + results), capped, so it grows
@@ -31,6 +36,10 @@
     const maxContent = Math.min(560, Math.round((screen.availHeight || 900) * 0.7));
     const content = Math.min(document.body.scrollHeight, maxContent);
     const chrome = Math.max(0, window.outerHeight - window.innerHeight);
+    // Grow to fit content (header on open, then results), floored so the window
+    // never shrinks below its opening size. The loading hint is the field
+    // placeholder (not a height-changing banner), so the empty/loading state
+    // doesn't grow-then-shrink — that was the original flicker.
     const target = Math.max(modalMinHeight, content + chrome + 2);
     if (Math.abs(target - window.outerHeight) <= 4) return; // ignore sub-pixel churn
     // Only change height — the window grows straight down from its anchored
@@ -283,7 +292,7 @@
     document.documentElement.classList.add('modal');
     // Floor the window at its opening size so the empty/loading state never
     // resizes (only real results grow it) — kills the open-time flicker.
-    modalMinHeight = window.outerHeight || 0;
+    modalMinHeight = MODAL_MIN_H;
     // Learn our own window id, then size to fit and keep fitting as content
     // (results) changes.
     messenger.windows

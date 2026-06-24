@@ -270,7 +270,7 @@
   // moving window — so we anchor the top up-front for the expanded height
   // (SPOTLIGHT_EXPANDED_H): the collapsed field opens high, then results fill
   // downward to land roughly vertically centered.
-  const SPOTLIGHT_H = 120;
+  const SPOTLIGHT_H = 140; // must track MODAL_MIN_H (the resize floor) in ui/search.js
   const SPOTLIGHT_EXPANDED_H = 560; // must track the height cap in fitModalWindow
   let spotlightWindowId = null;
   async function searchUIMode() {

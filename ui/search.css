@@ -127,6 +127,13 @@ button:hover { background: var(--hover); }
   color: var(--muted);
   font-size: 12px;
 }
+/* When they have no text, take no vertical space — otherwise their padding
+   inflates the centered window's collapsed (field-only) height, which forced an
+   open-time resize and clipped the field. They reclaim padding once populated. */
+.status:empty,
+.empty:empty {
+  padding: 0;
+}
 progress { width: calc(100% - 28px); margin: 0 14px 8px; height: 6px; }
 
 ul#results {
