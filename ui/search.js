@@ -288,8 +288,15 @@
   });
 
   // Index controls (Rebuild / Verify & repair) now live in the settings page.
-  $('settings').addEventListener('click', () => {
-    messenger.runtime.openOptionsPage();
+  // Close the search window once Settings opens so it doesn't linger over the
+  // options tab. (The toolbar popup would close on blur anyway; the centered
+  // window must close itself.) Await the open first so closing doesn't abort it.
+  $('settings').addEventListener('click', async () => {
+    try {
+      await messenger.runtime.openOptionsPage();
+    } finally {
+      window.close();
+    }
   });
 
   if (isModal) {
