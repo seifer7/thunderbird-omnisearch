@@ -147,12 +147,16 @@
       let badge = '';
       if (r.encrypted) badge = '<span class="badge" title="Encrypted message — indexed by subject/sender only">encrypted</span>';
       else if (!r.bodyAvailable) badge = '<span class="badge" title="Indexed by header only">header-only</span>';
+      // A deduplicated result lists every folder the email appears in (e.g. a
+      // Gmail message in both Inbox and All Mail). Fall back to the single
+      // folderName for older result payloads.
+      const folders = (r.folders && r.folders.length ? r.folders : [r.folderName]).filter(Boolean);
       li.innerHTML = `
         <div class="row">
           <span class="subject">${escape(r.subject || '(no subject)')}${badge}</span>
           <span class="date">${fmtDate(r.date)}</span>
         </div>
-        <div class="meta">${escape(r.from)} → ${escape(r.to)} · <span class="folder">${escape(r.folderName)}</span></div>
+        <div class="meta">${escape(r.from)} → ${escape(r.to)} · <span class="folder">${escape(folders.join(' · '))}</span></div>
         <div class="preview">${escape(r.preview)}</div>`;
       li.addEventListener('click', async () => {
         await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId });
