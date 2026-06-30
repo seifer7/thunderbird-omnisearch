@@ -143,6 +143,13 @@ ul#results {
   /* Cap the panel height; scroll results within the popup. */
   max-height: 460px;
   overflow-y: auto;
+  /* Never show a horizontal scrollbar. On Linux the classic vertical scrollbar
+     reserves ~15px of width (macOS overlay scrollbars reserve none), which can
+     tip a long result row into horizontal overflow; clip it instead of letting
+     it bleed out into a window-level horizontal scrollbar. The text rules below
+     (wrapping + a shrinkable subject) keep content inside this width to begin
+     with, so nothing is actually lost to the clip. */
+  overflow-x: hidden;
 }
 /* Centered standalone window (ui/search.html#modal): fill the window width and
    take natural (content) height — search.js resizes the window itself so it
@@ -162,7 +169,10 @@ li.result:focus {
   background: var(--hover);
 }
 .row { display: flex; justify-content: space-between; gap: 12px; }
-.subject { font-weight: 600; }
+/* min-width:0 lets the subject shrink below its content width inside the flex
+   row (default min-width:auto would push the row wider than the panel); long
+   subjects/addresses/URLs wrap instead of overflowing horizontally. */
+.subject { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .subject .badge {
   font-weight: 500;
   font-size: 11px;
@@ -173,8 +183,8 @@ li.result:focus {
   margin-left: 6px;
 }
 .date { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.preview { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.meta { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+.preview { color: var(--muted); font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
 .folder { color: var(--accent); }
 
 .empty { padding: 24px 14px; color: var(--muted); text-align: center; }
