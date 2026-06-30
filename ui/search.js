@@ -83,18 +83,6 @@
     return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
-  // Escape for safe interpolation into innerHTML. Result text (subject/from/to/
-  // preview) is attacker-controlled — it comes from email content — so it must be
-  // neutralised. We currently only interpolate into element-content (text)
-  // positions, where &<> suffices, but we also encode the quote characters so the
-  // helper stays safe if a value is ever moved into an attribute value.
-  function escape(s) {
-    return String(s).replace(
-      /[&<>"']/g,
-      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
-    );
-  }
-
   // The field is usable immediately (type-ahead): you can start typing while the
   // index loads/builds. The "Loading…" indicator stays up until the index is
   // genuinely ready — meaning it has finished loading AND any (re)build is done
@@ -141,7 +129,7 @@
   }
 
   function renderResults(results, query) {
-    resultsEl.innerHTML = '';
+    resultsEl.replaceChildren();
     emptyEl.textContent = '';
     if (!query.trim()) return;
     if (results.length === 0) {
@@ -152,20 +140,53 @@
       const li = document.createElement('li');
       li.className = 'result';
       li.tabIndex = 0; // focusable for keyboard navigation
-      let badge = '';
-      if (r.encrypted) badge = '<span class="badge" title="Encrypted message — indexed by subject/sender only">encrypted</span>';
-      else if (!r.bodyAvailable) badge = '<span class="badge" title="Indexed by header only">header-only</span>';
+
+      // Built entirely with DOM nodes + textContent, never innerHTML: result
+      // fields (subject/from/to/preview) come from email content and are therefore
+      // attacker-controlled. textContent cannot inject markup, so there is no HTML
+      // escaping to get right — and the addons-linter's "unsafe innerHTML" warning
+      // goes away because no markup string is ever assigned.
+      const subject = document.createElement('span');
+      subject.className = 'subject';
+      subject.textContent = r.subject || '(no subject)';
+      if (r.encrypted || !r.bodyAvailable) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        if (r.encrypted) {
+          badge.title = 'Encrypted message — indexed by subject/sender only';
+          badge.textContent = 'encrypted';
+        } else {
+          badge.title = 'Indexed by header only';
+          badge.textContent = 'header-only';
+        }
+        subject.appendChild(badge); // .badge margin-left provides the gap
+      }
+
+      const date = document.createElement('span');
+      date.className = 'date';
+      date.textContent = fmtDate(r.date);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.append(subject, date);
+
       // A deduplicated result lists every folder the email appears in (e.g. a
       // Gmail message in both Inbox and All Mail). Fall back to the single
       // folderName for older result payloads.
       const folders = (r.folders && r.folders.length ? r.folders : [r.folderName]).filter(Boolean);
-      li.innerHTML = `
-        <div class="row">
-          <span class="subject">${escape(r.subject || '(no subject)')}${badge}</span>
-          <span class="date">${fmtDate(r.date)}</span>
-        </div>
-        <div class="meta">${escape(r.from)} → ${escape(r.to)} · <span class="folder">${escape(folders.join(' · '))}</span></div>
-        <div class="preview">${escape(r.preview)}</div>`;
+      const folder = document.createElement('span');
+      folder.className = 'folder';
+      folder.textContent = folders.join(' · ');
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.append(`${r.from} → ${r.to} · `, folder);
+
+      const preview = document.createElement('div');
+      preview.className = 'preview';
+      preview.textContent = r.preview;
+
+      li.append(row, meta, preview);
       li.addEventListener('click', async () => {
         await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId });
         // Close the popup once the message opens, unless the user opted to keep
@@ -246,7 +267,7 @@
   clearBtn.addEventListener('click', () => {
     queryInput.value = '';
     syncClearButton();
-    resultsEl.innerHTML = '';
+    resultsEl.replaceChildren();
     emptyEl.textContent = '';
     queryInput.focus();
   });
