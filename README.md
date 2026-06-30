@@ -1,110 +1,161 @@
 # OmniSearch for Thunderbird
 
-Fast, fuzzy, relevance-ranked email search for Thunderbird — built on [MiniSearch](https://github.com/lucaong/minisearch), the same engine behind the [Obsidian OmniSearch](https://github.com/scambier/obsidian-omnisearch) plugin.
+A fast, forgiving search for your email. Start typing and OmniSearch shows the
+most relevant messages right away — even if you misspell a word or only remember
+part of it.
 
-It maintains **its own search index, completely independent of Thunderbird's Gloda** (the built-in global database that frequently fails to find messages that demonstrably exist — including locally-composed sent mail). Where Gloda silently drops messages, this index keeps itself correct with live updates and a "Verify & repair" self-heal pass.
+It keeps its own search index instead of relying on Thunderbird's built-in
+search (Gloda), which often fails to find messages that are clearly there,
+including mail you sent yourself. OmniSearch builds a separate index, keeps it up
+to date as your mail changes, and can check and repair itself so messages do not
+quietly go missing from search.
 
-## Features
+## What it does
 
-**Search quality**
-- **BM25 relevance ranking**, with header fields (subject / from / to) boosted over the body.
-- **Typo-tolerant fuzzy** matching and **prefix ("as-you-type")** search.
-- An **independent index that bypasses Gloda**, so it finds mail Gloda misses.
-- **Quoted replies are stripped** before indexing, so a long thread isn't matched once per reply — the quoted text stays findable via the original message. Handles `>` quoting, "On … wrote:" attributions, Outlook `From:/Sent:` headers and forwarded-message banners (incl. German/French/Spanish).
-- **No duplicate results across Gmail labels.** A message that Gmail/IMAP shows in several places (e.g. **All Mail** *and* Inbox/Archive/Sent) appears **once**, with every folder it lives in listed on the result (e.g. `Inbox · All Mail`).
+**Finds the right email quickly**
 
-**Two ways to search** (pick one in Settings → *Search interface*)
-- **Toolbar popup** (default): a **native popup panel** dropping down from the toolbar button.
-- **Centered window**: a Spotlight-style search box in the middle of the screen that grows as results appear; press **Esc** to dismiss it.
+- Ranks the most relevant messages first, and gives extra weight to matches in
+  the subject, sender, and recipient over matches deep in the body.
+- Tolerates typos, so "reciept" still finds "receipt".
+- Searches as you type, matching partial words ("invo" finds "invoice").
+- Searches mail that Thunderbird's own search misses.
 
-Either opens from the toolbar button or the **`Alt+S`** keyboard shortcut, and:
-- **Keyboard navigation**: type a query, press **Tab** (or **↓**) to jump to the first result, **Tab / ↓ / ↑** to move through results, **Enter** to open the selected message, **Esc** to clear the field.
-- A **clear (×)** button, and a focus outline that uses the **platform/theme accent**.
-- Results show sender, date, folder(s) and a snippet; the focused result is highlighted.
-- Clicking or pressing Enter **opens the message** (resolved by its stable RFC Message-ID, so it works even after a restart). The window then closes — unless "keep open" is enabled in Settings.
-- Clicking the **settings cog** opens the options page and closes the search window.
-- Badges flag results indexed **`header-only`** (body not downloaded) or **`encrypted`** (see Privacy).
+**Cleaner results**
 
-**Indexing**
-- **Live incremental updates** as mail is received, updated, moved, copied or deleted — the thing Gloda does unreliably.
-- **Verify & repair**: re-walks every folder, removes stale entries and indexes anything missing, so a message can never stay permanently hidden.
-- Bodies are read **concurrently** for speed; a progress indicator shows `indexed / total (%)`.
-- A **loading spinner** appears while the index deserializes after a Thunderbird restart, and search is disabled until it's ready.
-- The index is **persisted to IndexedDB**, so search is instant after a restart.
+- Ignores quoted replies when indexing, so a long back-and-forth thread does not
+  flood your results with the same text repeated in every reply. The original
+  message is still findable. This works with the common reply and forward styles
+  from Gmail, Apple Mail, Outlook, and Thunderbird, including German, French, and
+  Spanish wording.
+- Shows each Gmail or IMAP message once, even when it appears in several places
+  at once (for example both All Mail and Inbox). The result lists every folder
+  the message lives in, such as "Inbox, All Mail".
+- Each result shows the sender, date, folder(s), and a short preview. A small
+  label marks messages indexed by header only (body not downloaded yet) or
+  encrypted.
 
-**Privacy**
-- **No network access** (no host permissions) — the index can't be exfiltrated by the add-on.
-- **Encrypted (OpenPGP/S-MIME) mail is indexed by header only by default** — its decrypted contents are never written to disk unless body indexing is opted into. See [SECURITY.md](SECURITY.md).
+**Two ways to search** (choose one in Settings)
 
-## Install (temporary, for testing)
+- Toolbar popup (the default): a small search panel that drops down from the
+  toolbar button.
+- Centered window: a search box that opens in the middle of the screen and grows
+  as results come in. Press Esc to close it.
 
-**No build step.** The extension is plain JavaScript, loadable as-is:
+Either one opens from the toolbar button or the Alt+S keyboard shortcut. You can
+work entirely from the keyboard: type your search, press Tab or the Down arrow to
+jump into the results, move through them with the arrow keys, press Enter to open
+the selected message, and press Esc to clear the box. Opening a result jumps to
+that message in Thunderbird, and the search window closes unless you choose to
+keep it open.
 
-1. In Thunderbird: **≡ → Add-ons and Themes → gear icon → Debug Add-ons → Load Temporary Add-on…**
-2. Select **`manifest.json` in this folder** (the project root — *not* a `dist` subfolder; there isn't one).
-3. Click the grey **magnifier** toolbar button (or press **`Alt+S`**) to open the search popup. On first install it auto-builds the index.
+**Stays up to date on its own**
 
-To build a packaged `.xpi`, run `./build.sh` (needs `zip`).
+- Updates the index automatically as mail arrives or is moved, copied, edited, or
+  deleted.
+- "Verify and repair" re-checks every folder against the index, removing stale
+  entries and adding anything missing, so a message can never stay permanently
+  hidden from search.
+- The index is saved to disk, so it is ready almost instantly after you restart
+  Thunderbird rather than being rebuilt every time.
 
-### Permanent install
+**Private by design**
 
-Temporary add-ons are removed when Thunderbird restarts. To install permanently:
+- No internet access at all. OmniSearch has no network permissions, so your mail
+  and your search index never leave your computer.
+- Encrypted email (OpenPGP and S/MIME) is indexed by subject and sender only by
+  default. The decrypted contents are never written to disk unless you
+  deliberately turn that on. See [SECURITY.md](SECURITY.md) for the details.
 
-1. **Local (no signing).** Thunderbird honours a config switch that Firefox release does not: in `about:config` set `xpinstall.signatures.required` to **false**, then install the `.xpi` via Add-ons Manager → gear → *Install Add-on From File…*. It persists across restarts. Simplest for personal use.
-2. **Signed (for distribution).** Real signing is done by Mozilla — submit the `.xpi` to [addons.thunderbird.net](https://addons.thunderbird.net) (ATN), which reviews and signs it. There is no purely local way to produce a Thunderbird-valid signature.
+## Installing
 
-The **`Alt+S`** shortcut is assigned automatically on install; change it under Add-ons Manager → gear → *Manage Extension Shortcuts*.
+There is no build step — the extension is plain JavaScript and loads as-is.
+
+### Quick try-out (temporary)
+
+1. In Thunderbird, open the menu and go to Add-ons and Themes, click the gear
+   icon, then Debug Add-ons, then "Load Temporary Add-on".
+2. Select the `manifest.json` file in this folder.
+3. Click the magnifier button in the toolbar (or press Alt+S) to open search. The
+   first time, it builds the index in the background.
+
+A temporary add-on is removed when you restart Thunderbird.
+
+### Keep it installed (permanent)
+
+To make a packaged file, run `./build.sh` (it needs the `zip` tool). That
+produces a `.xpi` file you can install one of two ways:
+
+1. For personal use, the simplest path: in Thunderbird's `about:config`, set
+   `xpinstall.signatures.required` to `false`, then install the `.xpi` through
+   Add-ons Manager, gear icon, "Install Add-on From File". It stays installed
+   across restarts. (Thunderbird allows this; Firefox does not.)
+2. For sharing with others: submit the `.xpi` to
+   [addons.thunderbird.net](https://addons.thunderbird.net), which reviews and
+   signs it. Only Mozilla can produce a valid signature.
+
+The Alt+S shortcut is set up automatically. You can change it under Add-ons
+Manager, gear icon, "Manage Extension Shortcuts".
 
 ## What gets indexed
 
-- **Junk (Spam) and Trash are NOT indexed by default.** Every other folder of every *included* account is. Opt Junk/Trash back in under Settings.
-- **Encrypted messages are indexed by header only by default** (subject/sender), so no decrypted text is written to the index. Opt in to index their bodies.
-- **IMAP bodies must be on disk to be indexed.** Thunderbird downloads IMAP bodies "on demand" by default, so not-yet-downloaded messages are indexed **by header only** (shown with a `header-only` badge). To make every IMAP body searchable: **Account Settings → Synchronization & Storage → "Keep messages … on this computer"**, synchronise *all* messages (per-folder; subfolders aren't inherited), then Rebuild.
+- Junk (Spam) and Trash are left out by default. Every other folder of every
+  included account is indexed. You can opt Junk and Trash back in under Settings.
+- Encrypted messages are indexed by subject and sender only by default, so no
+  decrypted text is written to the index. You can opt in to index their contents.
+- For IMAP accounts, a message body has to be downloaded to your computer before
+  it can be indexed. Thunderbird downloads IMAP bodies "on demand" by default, so
+  messages you have not opened yet are indexed by header only and shown with a
+  "header-only" label. To make every IMAP body searchable, go to Account
+  Settings, then Synchronization & Storage, turn on keeping messages on this
+  computer, synchronize all messages (do this per folder; subfolders are not
+  automatic), then rebuild the index.
 
 ## Settings
 
-Open via the **cog** in the search popup, or Add-ons Manager → OmniSearch → gear → Options.
+Open settings from the gear icon in the search window, or from Add-ons Manager,
+OmniSearch, gear icon, Options.
 
-| Setting | Default | Effect |
-|---------|---------|--------|
-| Search interface | Toolbar popup | Choose the **toolbar popup** or a **centered window** (Spotlight-style, opens mid-screen). |
-| Keep the search popup open after opening a result | off | Leave the popup open instead of closing when a message is opened. |
-| Keep the search index loaded for instant results | off | Hold the index in memory so reopening search is instant instead of briefly reloading. Uses a little more background memory/battery. |
-| Accounts to index | all included | Per-account include/exclude (opt-out: new accounts are included automatically). |
-| Include Junk (Spam) and Trash folders | off | Index those folders too. |
-| Index the contents of encrypted emails | off | Index decrypted bodies of OpenPGP/S-MIME mail (stored unencrypted in the index). |
-| Indexed body length per email | 4,000 chars | How much of each email's body is indexed (after quoted replies are stripped). Smaller = lighter index, faster cold load, less memory; larger = more of long emails searchable. Needs a rebuild to apply. |
-| Rebuild index | — | Re-index all mail from scratch. |
-| Verify & repair | — | Reconcile the index against the configured folders (add missing, remove stale). |
+| Setting | Default | What it does |
+|---|---|---|
+| Search interface | Toolbar popup | Choose the toolbar popup or a centered, Spotlight-style window. |
+| Keep the search popup open after opening a result | Off | Leaves the search window open instead of closing it when you open a message. |
+| Keep the search index loaded for instant results | Off | Holds the index in memory so reopening search is instant. Uses a little more memory and battery in the background. |
+| Accounts to index | All included | Turn individual accounts on or off. New accounts are included automatically. |
+| Include Junk (Spam) and Trash folders | Off | Adds those folders to search. |
+| Index the contents of encrypted emails | Off | Indexes the decrypted bodies of OpenPGP/S-MIME mail. Their text is then stored unencrypted in the index. |
+| Indexed body length per email | 4,000 characters | How much of each email's body is searchable. Smaller keeps the index lighter and faster to load; larger makes more of long emails searchable. Changing it needs a rebuild. |
+| Rebuild index | — | Re-indexes all of your mail from scratch. |
+| Verify and repair | — | Checks the index against your folders and fixes any differences. |
 
-### Applying scope changes incrementally (no full rebuild)
+### Applying changes without a full rebuild
 
-When the set of indexed accounts changes, or Junk/Trash is toggled, an **"Apply now"** banner appears. It runs **Verify & repair**, which **adds only the newly-included messages and removes the newly-excluded ones** — a full rebuild is *not* required. (The "index encrypted bodies" toggle is the exception: it changes how existing messages are read, so its banner offers a **Rebuild**.) The banner stays up while applying and disappears when done.
+When you change which accounts are indexed, or toggle Junk and Trash, an "Apply
+now" banner appears. Applying only adds the newly included messages and removes
+the newly excluded ones, which is much faster than a full rebuild. The one
+exception is the "index encrypted bodies" option: because it changes how messages
+are read, its banner offers a full rebuild instead.
 
-## How it works
+## Your privacy and security
 
-Plain classic scripts loaded in order via `manifest.json` → `background.scripts` (each attaches to `globalThis`); the popup and options page talk to the background over `runtime.sendMessage`.
+The search index is stored unencrypted inside your Thunderbird profile, similar
+to the full-text index Thunderbird already keeps for its own search. For ordinary
+mail, this is roughly the same exposure as the messages Thunderbird already stores
+on your computer. Encrypted mail is indexed by header only unless you opt in. The
+add-on has no internet access, so nothing can be sent anywhere. For the best
+protection of data at rest, use full-disk encryption. The full threat model and
+the reasoning behind these choices are in [SECURITY.md](SECURITY.md).
 
-| File | Role |
-|------|------|
-| `lib/minisearch.js` | Vendored MiniSearch UMD build (defines `globalThis.MiniSearch`). |
-| `lib/engine.js`     | `OmniEngine` — MiniSearch wrapper. The *only* file to touch to swap engines (FlexSearch/Orama). |
-| `lib/store.js`      | `OmniStore` — IndexedDB persistence of the serialised index. |
-| `lib/indexer.js`    | `OmniIndexer` — walks accounts/folders, reads bodies (`getFull({decrypt:false})`), applies account / Junk-Trash / encrypted rules, builds index docs concurrently. |
-| `lib/events.js`     | `OmniEvents` — live incremental updates + `reconcile()` self-heal. |
-| `background.js`     | Orchestrator: owns the in-memory index, persistence, message handling, the toolbar button. |
-| `ui/`               | The search popup (HTML/CSS/JS). |
-| `options/`          | The settings page (HTML/CSS/JS). |
-| `icons/search.svg`  | Fixed mid-grey magnifier (TB per-theme icon tinting is unreliable for action icons). |
+## Under the hood
 
-## Engine choice
-
-MiniSearch (v7) was chosen over FlexSearch (fastest, but phonetic not edit-distance fuzzy), Orama (heavier; good for later semantic/faceted search), Fuse.js (no inverted index — won't scale to full bodies) and Lunr (immutable index — no cheap incremental updates). The engine is isolated behind `lib/engine.js` so switching later touches one file.
-
-## Security & privacy
-
-The index is stored **unencrypted in the Thunderbird profile** (IndexedDB), much like Thunderbird's own Gloda full-text index, and the add-on has **no network access**. For ordinary mail it's about as exposed as data Thunderbird already keeps on disk. **Encrypted (OpenPGP/S-MIME) messages are indexed by header only by default.** Use disk encryption, and see [SECURITY.md](SECURITY.md) for the full review, threat model, and mitigations.
+OmniSearch is built on [MiniSearch](https://github.com/lucaong/minisearch), the
+same search engine used by the [Obsidian OmniSearch](https://github.com/scambier/obsidian-omnisearch)
+plugin. To keep Thunderbird responsive on large mailboxes, the heavy work — the
+search index itself, saving and loading it, and extracting text from messages —
+runs in background worker threads, so the main Thunderbird window never freezes
+while indexing or searching. The index is saved in a compact form that loads
+quickly even for very large mailboxes.
 
 ## License
 
-MIT. Uses MiniSearch (MIT). Does **not** reuse Obsidian OmniSearch's GPL-3 code — only the same underlying engine and approach.
+MIT. Includes MiniSearch (MIT). It does not reuse the GPL-3 code of Obsidian
+OmniSearch — only the same underlying engine and general approach.
