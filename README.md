@@ -36,10 +36,9 @@ quietly go missing from search.
 
 **Two ways to search** (choose one in Settings)
 
-- Toolbar popup (the default): a small search panel that drops down from the
-  toolbar button.
-- Centered window: a search box that opens in the middle of the screen and grows
-  as results come in. Press Esc to close it.
+- Centered window (the default): a search box that opens in the middle of the
+  screen and grows as results come in. Press Esc to close it.
+- Toolbar popup: a small search panel that drops down from the toolbar button.
 
 Either one opens from the toolbar button or the Alt+S keyboard shortcut. You can
 work entirely from the keyboard: type your search, press Tab or the Down arrow to
@@ -100,7 +99,7 @@ OmniSearch, gear icon, Options.
 
 | Setting | Default | What it does |
 |---|---|---|
-| Search interface | Toolbar popup | Choose the toolbar popup or a centered, Spotlight-style window. |
+| Search interface | Centered window | Choose the centered, Spotlight-style window or the toolbar popup. |
 | Keep the search popup open after opening a result | Off | Leaves the search window open instead of closing it when you open a message. |
 | Keep the search index loaded for instant results | Off | Holds the index in memory so reopening search is instant. Uses a little more memory and battery in the background. |
 | Accounts to index | All included | Turn individual accounts on or off. New accounts are included automatically. |

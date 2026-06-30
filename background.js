@@ -259,10 +259,11 @@
   }
 
   // ---- Search UI mode (toolbar popup vs Spotlight-style window) ----
-  // 'popup' (default): the toolbar button opens ui/search.html anchored to it.
-  // 'spotlight': clear the action popup so a click / the Alt+S command fires
-  // action.onClicked, which opens ui/search.html as a centered standalone window
-  // (reuses the exact same page). One setting drives both button and shortcut.
+  // 'spotlight' (default): clear the action popup so a click / the Alt+S command
+  // fires action.onClicked, which opens ui/search.html as a centered standalone
+  // window (reuses the exact same page).
+  // 'popup': the toolbar button opens ui/search.html anchored to it.
+  // One setting drives both button and shortcut.
   const SPOTLIGHT_W = 720;
   // Start collapsed (about the height of the search field); the page grows the
   // window downward to fit results as they appear (see fitModalWindow in
@@ -276,9 +277,10 @@
   async function searchUIMode() {
     try {
       const r = await messenger.storage.local.get('settings');
-      return r.settings && r.settings.searchUI === 'spotlight' ? 'spotlight' : 'popup';
+      // Spotlight is the default: only an explicit 'popup' choice opts out.
+      return r.settings && r.settings.searchUI === 'popup' ? 'popup' : 'spotlight';
     } catch (e) {
-      return 'popup';
+      return 'spotlight';
     }
   }
   async function applySearchUI() {

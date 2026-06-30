@@ -79,9 +79,10 @@
     const settings = await getSettings();
     keepOpen.checked = !!settings.keepOpenAfterResult;
     keepWarm.checked = !!settings.keepWarm;
-    const spotlight = settings.searchUI === 'spotlight';
-    searchUISpotlight.checked = spotlight;
-    searchUIPopup.checked = !spotlight;
+    // Spotlight (centered window) is the default; only an explicit 'popup' opts out.
+    const popup = settings.searchUI === 'popup';
+    searchUIPopup.checked = popup;
+    searchUISpotlight.checked = !popup;
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
     bodyIndexLimit.value = String(settings.bodyIndexLimit || 4000);
