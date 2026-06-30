@@ -8,3 +8,7 @@ node_modules/
 .DS_Store
 *.log
 *~
+
+# Local AI-assistant notes (developer-only; not for publication)
+CLAUDE.md
+.claude/

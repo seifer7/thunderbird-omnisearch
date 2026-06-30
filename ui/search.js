@@ -83,8 +83,16 @@
     return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
+  // Escape for safe interpolation into innerHTML. Result text (subject/from/to/
+  // preview) is attacker-controlled — it comes from email content — so it must be
+  // neutralised. We currently only interpolate into element-content (text)
+  // positions, where &<> suffices, but we also encode the quote characters so the
+  // helper stays safe if a value is ever moved into an attribute value.
   function escape(s) {
-    return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+    return String(s).replace(
+      /[&<>"']/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+    );
   }
 
   // The field is usable immediately (type-ahead): you can start typing while the
