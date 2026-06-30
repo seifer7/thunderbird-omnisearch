@@ -44,10 +44,10 @@
     "open_in_tab": true
   },
   "icons": {
-    "16": "icons/search.svg",
-    "32": "icons/search.svg",
-    "48": "icons/search.svg",
-    "64": "icons/search.svg",
-    "128": "icons/search.svg"
+    "16": "icons/omnisearch.svg",
+    "32": "icons/omnisearch.svg",
+    "48": "icons/omnisearch.svg",
+    "64": "icons/omnisearch.svg",
+    "128": "icons/omnisearch.svg"
   }
 }

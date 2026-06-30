@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <!-- OmniSearch icon: a clean, minimalist magnifying glass with a blue-to-violet
+       gradient. SVG scales to every manifest size (16-128). The light glass fill
+       keeps the lens legible on both light and dark toolbars. -->
+  <defs>
+    <linearGradient id="rim" x1="22" y1="16" x2="82" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2BB6FF"/>
+      <stop offset="1" stop-color="#6C5CE7"/>
+    </linearGradient>
+    <linearGradient id="grip" x1="72" y1="72" x2="114" y2="114" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6C5CE7"/>
+      <stop offset="1" stop-color="#7B6BF0"/>
+    </linearGradient>
+  </defs>
+  <!-- handle (drawn first so it tucks behind the rim) -->
+  <line x1="76" y1="76" x2="112" y2="112" stroke="url(#grip)" stroke-width="17" stroke-linecap="round"/>
+  <!-- lens glass -->
+  <circle cx="51" cy="51" r="33" fill="#F4F9FF" fill-opacity="0.92"/>
+  <!-- lens rim -->
+  <circle cx="51" cy="51" r="33" fill="none" stroke="url(#rim)" stroke-width="12"/>
+  <!-- single highlight -->
+  <path d="M34 44 A22 22 0 0 1 46 31" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-opacity="0.85"/>
+</svg>
