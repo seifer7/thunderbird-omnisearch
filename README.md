@@ -68,33 +68,16 @@ keep it open.
 
 ## Installing
 
-There is no build step — the extension is plain JavaScript and loads as-is.
+There is no build step — the extension is plain JavaScript. To make the
+installable file, run `./build.sh` (it needs the `zip` tool), which produces a
+`.xpi` file. To install it for personal use: in Thunderbird's `about:config`, set
+`xpinstall.signatures.required` to `false`, then install the `.xpi` through
+Add-ons Manager, gear icon, "Install Add-on From File". 
 
-### Quick try-out (temporary)
-
-1. In Thunderbird, open the menu and go to Add-ons and Themes, click the gear
-   icon, then Debug Add-ons, then "Load Temporary Add-on".
-2. Select the `manifest.json` file in this folder.
-3. Click the magnifier button in the toolbar (or press Alt+S) to open search. The
-   first time, it builds the index in the background.
-
-A temporary add-on is removed when you restart Thunderbird.
-
-### Keep it installed (permanent)
-
-To make a packaged file, run `./build.sh` (it needs the `zip` tool). That
-produces a `.xpi` file you can install one of two ways:
-
-1. For personal use, the simplest path: in Thunderbird's `about:config`, set
-   `xpinstall.signatures.required` to `false`, then install the `.xpi` through
-   Add-ons Manager, gear icon, "Install Add-on From File". It stays installed
-   across restarts. (Thunderbird allows this; Firefox does not.)
-2. For sharing with others: submit the `.xpi` to
-   [addons.thunderbird.net](https://addons.thunderbird.net), which reviews and
-   signs it. Only Mozilla can produce a valid signature.
-
-The Alt+S shortcut is set up automatically. You can change it under Add-ons
-Manager, gear icon, "Manage Extension Shortcuts".
+After installing, click the magnifier button in the toolbar (or press Alt+S) to
+open search. The first time, it builds the index in the background. The Alt+S
+shortcut is set up automatically; you can change it under Add-ons Manager, gear
+icon, "Manage Extension Shortcuts".
 
 ## What gets indexed
 
