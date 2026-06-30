@@ -19,6 +19,7 @@ zip -r -q -X "$XPI" \
   options \
   icons \
   README.md \
+  LICENSE \
   -x "*.DS_Store" "*.map"
 
 echo "Built $XPI"

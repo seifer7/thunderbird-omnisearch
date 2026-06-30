@@ -4,9 +4,10 @@
   "version": "0.4.0",
   "description": "Fast, fuzzy, relevance-ranked email search powered by MiniSearch. Maintains its own index, independent of Thunderbird's Gloda.",
   "author": "CR0CKER",
+  "homepage_url": "https://github.com/CR0CKER/thunderbird-omnisearch",
   "browser_specific_settings": {
     "gecko": {
-      "id": "omnisearch@thunderbird.local",
+      "id": "omnisearch@cr0cker.github.io",
       "strict_min_version": "128.0"
     }
   },
@@ -44,6 +45,9 @@
   },
   "icons": {
     "16": "icons/search.svg",
-    "32": "icons/search.svg"
+    "32": "icons/search.svg",
+    "48": "icons/search.svg",
+    "64": "icons/search.svg",
+    "128": "icons/search.svg"
   }
 }
