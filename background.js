@@ -175,7 +175,8 @@
       return true;
     } catch (e) {
       try {
-        const tab = await messenger.mailTabs.getCurrent();
+        const [tab] = await messenger.mailTabs.query({ active: true, currentWindow: true });
+        if (!tab) return false;
         await messenger.mailTabs.setSelectedMessages(tab.id, [id]);
         return true;
       } catch (e2) {
