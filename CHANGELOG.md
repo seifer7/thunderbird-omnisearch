@@ -18,8 +18,9 @@ Changelog tracking begins at the 0.4.x series; for earlier history see the git l
 - `package.json` pinning the vendored MiniSearch version, plus `lib/VENDOR.md`
   recording its upstream, version, and SHA-256 — so GitHub's dependency graph,
   Dependabot, and `osv-scanner` surface any MiniSearch advisory. (audit M2)
-- CI workflow (`node --check` syntax gate, `osv-scanner` dependency audit,
-  `gitleaks` secret scan), a Dependabot config, and README status badges. (audit L3)
+- CI workflow (`node --check` syntax gate, an OSV dependency audit querying
+  api.osv.dev for each pinned dependency, `gitleaks` secret scan), a Dependabot
+  config, and README status badges. (audit L3)
 
 ### Fixed
 
