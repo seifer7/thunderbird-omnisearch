@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Least privilege: the whole workflow only needs to read the repo.
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    name: JS syntax + JSON validity
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout v4 — SHA-pinned per supply-chain policy.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # Ubuntu runners ship Node preinstalled; `node --check` is the repo's
+      # documented syntax gate (there is no build step). No setup-node needed,
+      # which keeps the action surface minimal.
+      - name: node --check every JS file
+        run: |
+          set -euo pipefail
+          while IFS= read -r f; do
+            echo "checking $f"
+            node --check "$f"
+          done < <(git ls-files '*.js')
+      - name: Validate JSON manifests
+        run: |
+          set -euo pipefail
+          for j in manifest.json package.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$j','utf8'))" && echo "$j OK"
+          done
+
+  deps:
+    name: Dependency audit (OSV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # We ship no lockfile (the one runtime dep is vendored — see lib/VENDOR.md),
+      # so a lockfile scanner would find nothing and exit 0 — a false "no vulns".
+      # Instead query the OSV database directly for every EXACT pin in
+      # package.json's dependencies, and fail on any advisory. Requires exact
+      # versions (no ^/~ ranges), which is our policy anyway.
+      - name: Query OSV for each pinned dependency
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS=$'\t' read -r name ver; do
+            echo "Checking npm:$name@$ver"
+            resp=$(curl -sSf -X POST https://api.osv.dev/v1/query \
+              -H 'Content-Type: application/json' \
+              -d "{\"package\":{\"ecosystem\":\"npm\",\"name\":\"$name\"},\"version\":\"$ver\"}")
+            n=$(printf '%s' "$resp" | jq '.vulns | length')
+            if [ "$n" -gt 0 ]; then
+              echo "::error::$name@$ver has $n known advisory/advisories:"
+              printf '%s' "$resp" | jq -r '.vulns[].id'
+              fail=1
+            fi
+          done < <(jq -r '.dependencies // {} | to_entries[] | "\(.key)\t\(.value)"' package.json)
+          [ "$fail" -eq 0 ] && echo "No known advisories for pinned dependencies."
+          exit "$fail"
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0 # full history so gitleaks scans every commit
+      # gitleaks/gitleaks-action v2 — SHA-pinned. Free for personal/public repos.
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
