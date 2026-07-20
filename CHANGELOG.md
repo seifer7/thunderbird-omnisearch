@@ -8,6 +8,8 @@ Changelog tracking begins at the 0.4.x series; for earlier history see the git l
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-20
+
 ### Fixed
 
 - Empty-state search popup: the "No index yet — Rebuild to index your mail" hint
