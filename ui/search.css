@@ -127,6 +127,19 @@ button:hover { background: var(--hover); }
   color: var(--muted);
   font-size: 12px;
 }
+/* An inline text button rendered as a link (e.g. "Rebuild" in the empty-state
+   status line), so an action is clickable without a full-size button. */
+.linkbtn {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.linkbtn:hover { background: none; }
+.linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 /* When they have no text, take no vertical space — otherwise their padding
    inflates the centered window's collapsed (field-only) height, which forced an
    open-time resize and clipped the field. They reclaim padding once populated. */

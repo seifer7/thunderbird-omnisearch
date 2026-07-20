@@ -8,6 +8,12 @@ Changelog tracking begins at the 0.4.x series; for earlier history see the git l
 
 ## [Unreleased]
 
+### Fixed
+
+- Empty-state search popup: the "No index yet — Rebuild to index your mail" hint
+  now has a **clickable "Rebuild"** that starts indexing directly. Previously it
+  told the user to click a control that only exists on the Settings page.
+
 ## [0.5.0] - 2026-07-20
 
 ### Added

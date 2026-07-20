@@ -119,7 +119,16 @@
     } else {
       progressEl.hidden = true;
       if (s.state === 'empty') {
-        statusEl.textContent = 'No index yet — click Rebuild to index your mail.';
+        // The Rebuild control lives in Settings, not this popup, so make the word
+        // itself the trigger — otherwise "click Rebuild" points at nothing here.
+        statusEl.replaceChildren();
+        statusEl.append('No index yet — ');
+        const rebuildLink = document.createElement('button');
+        rebuildLink.type = 'button';
+        rebuildLink.className = 'linkbtn';
+        rebuildLink.textContent = 'Rebuild';
+        rebuildLink.addEventListener('click', () => void startRebuild());
+        statusEl.append(rebuildLink, ' to index your mail.');
       } else {
         const parts = [`${s.count.toLocaleString()} messages indexed`];
         if (s.updatedAt) parts.push(`updated ${new Date(s.updatedAt).toLocaleTimeString()}`);
@@ -217,6 +226,19 @@
     if (seq !== searchSeq) return; // a newer keystroke superseded this one
     if (reply && reply.type === 'results') renderResults(reply.results, query);
     else emptyEl.textContent = 'No response from the index.';
+  }
+
+  // Kick off a full index build from the empty-state "Rebuild" link. The
+  // background returns immediately (the build runs async); the status poll then
+  // picks up the 'building' state and shows progress, so we just nudge it.
+  async function startRebuild() {
+    try {
+      await send({ type: 'rebuild' });
+    } catch (e) {
+      statusEl.textContent = 'Could not start indexing — open Settings to rebuild.';
+      return;
+    }
+    void refreshStatus();
   }
 
   let gotReply = false;
