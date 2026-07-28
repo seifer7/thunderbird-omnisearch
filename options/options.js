@@ -338,6 +338,16 @@
     void refreshStatus();
   });
 
+  // Re-count eligible messages in the background (folder metadata only — no body
+  // reads, no effect on an ongoing build). The 1-second poll will pick up the
+  // updated total once the count finishes.
+  refreshStatusBtn.addEventListener('click', async () => {
+    refreshStatusBtn.disabled = true;
+    await send({ type: 'countEligible' });
+    refreshStatusBtn.disabled = false;
+    void refreshStatus();
+  });
+
   // Destructive: purges the index from disk. Confirm first, since it also removes
   // any opted-in decrypted encrypted-mail bodies and leaves search empty until a
   // rebuild.
