@@ -143,6 +143,16 @@
     <p class="hint indent">Off by default — Junk and Trash are kept out of search.</p>
 
     <label style="margin-top: 12px">
+      <span>Only index messages from:&nbsp;</span>
+      <input type="date" id="indexStartDate" />
+    </label>
+    <p class="hint indent">
+      Leave blank to index all mail. When a date is set, messages received before
+      that date are excluded from the index. Works alongside account and folder
+      filters. Changing this applies incrementally (no full rebuild needed).
+    </p>
+
+    <label style="margin-top: 12px">
       <input type="checkbox" id="indexEncryptedBodies" />
       <span>Index the contents of encrypted (OpenPGP/S-MIME) emails</span>
     </label>

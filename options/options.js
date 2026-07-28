@@ -10,6 +10,7 @@
   const includeSpamTrash = document.getElementById('includeSpamTrash');
   const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
   const bodyIndexLimit = document.getElementById('bodyIndexLimit');
+  const indexStartDate = document.getElementById('indexStartDate');
   const accountsEl = document.getElementById('accounts');
   const folderIndexAll = document.getElementById('folderIndexAll');
   const folderIndexIncluded = document.getElementById('folderIndexIncluded');
@@ -94,6 +95,7 @@
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
     bodyIndexLimit.value = String(settings.bodyIndexLimit || 4000);
+    indexStartDate.value = settings.indexStartDate || '';
     // Folder index mode: default 'all'
     const folderMode = settings.folderIndexMode || 'all';
     folderIndexAll.checked = folderMode === 'all';
@@ -129,6 +131,16 @@
     const settings = await getSettings();
     settings.includeSpamTrash = includeSpamTrash.checked;
     await messenger.storage.local.set({ [KEY]: settings });
+    showBanner('reconcile');
+  });
+
+  indexStartDate.addEventListener('change', async () => {
+    const settings = await getSettings();
+    // Store as 'YYYY-MM-DD' string; empty value removes the filter.
+    settings.indexStartDate = indexStartDate.value || '';
+    await messenger.storage.local.set({ [KEY]: settings });
+    // Narrowing the window drops old messages; widening it adds them back —
+    // both are handled correctly by reconcile without a full rebuild.
     showBanner('reconcile');
   });
 

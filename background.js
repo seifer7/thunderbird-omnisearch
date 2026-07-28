@@ -24,12 +24,19 @@
 
   // Walk the folder tree (metadata only — no body reads, no index mutations) and
   // update eligibleTotal. Safe to call at any time, including during a build.
+  // When an index start date is configured, headers must be iterated to get an
+  // accurate count (getFolderInfo returns a raw total that ignores the date cut-off).
   async function countEligibleInBackground() {
     if (eligibleCountRunning) return;
     eligibleCountRunning = true;
     try {
       const folders = await OmniIndexer.flattenFolders();
-      eligibleTotal = await OmniIndexer.totalMessageCount(folders);
+      const startDateMs = await OmniIndexer.getIndexStartDate();
+      if (startDateMs > 0) {
+        eligibleTotal = await OmniIndexer.countEligibleHeaders(folders, startDateMs);
+      } else {
+        eligibleTotal = await OmniIndexer.totalMessageCount(folders);
+      }
     } catch (e) {
       console.error('[OmniSearch] eligible count failed:', e);
     } finally {
@@ -184,6 +191,7 @@
     building = true;
     buildProgress = 0;
     headerOnly = 0;
+    let builtCount = 0;
     await engineProxy.reset();
     try {
       const result = await OmniIndexer.fullBuild(engineProxy, extractor, (fraction, _count, ho, total) => {
@@ -192,10 +200,14 @@
         buildTotal = total || 0;
       });
       headerOnly = result.headerOnly;
+      builtCount = result.count;
     } finally {
       building = false;
     }
-    await engineProxy.flush({ headerOnly, eligibleTotal: buildTotal });
+    // Use the actually-indexed count as eligibleTotal: it reflects any date filter
+    // applied during the build, unlike buildTotal which comes from getFolderInfo.
+    eligibleTotal = builtCount || buildTotal;
+    await engineProxy.flush({ headerOnly, eligibleTotal });
   }
 
   // Open a single message by its numeric id, with a tab fallback.
@@ -439,7 +451,8 @@
           JSON.stringify(prev.excludedFolderIds) !== JSON.stringify(next.excludedFolderIds) ||
           JSON.stringify(prev.includedFolderIds) !== JSON.stringify(next.includedFolderIds) ||
           prev.folderIndexMode !== next.folderIndexMode ||
-          prev.includeSpamTrash !== next.includeSpamTrash
+          prev.includeSpamTrash !== next.includeSpamTrash ||
+          prev.indexStartDate !== next.indexStartDate
         ) {
           void countEligibleInBackground();
         }
