@@ -11,6 +11,7 @@
   let buildProgress = 0;
   let buildTotal = 0;
   let headerOnly = 0;
+  let eligibleTotal = 0;
   let updatedAt;
   // Cached document count reported by the worker (we can't read engine.size
   // synchronously across the worker boundary).
@@ -90,6 +91,7 @@
       const r = await call('clear');
       engineCount = r.count;
       headerOnly = r.headerOnly;
+      eligibleTotal = r.eligibleTotal || 0;
       updatedAt = r.updatedAt;
       saveError = r.saveError || null;
     },
@@ -97,6 +99,7 @@
       const r = await call('flush', meta || {});
       engineCount = r.count;
       headerOnly = r.headerOnly;
+      eligibleTotal = r.eligibleTotal || 0;
       saveError = r.saveError || null;
     },
   };
@@ -116,6 +119,7 @@
       state: engineCount > 0 ? 'ready' : 'empty',
       count: engineCount,
       headerOnly,
+      eligibleTotal,
       updatedAt,
       saveError,
     };
@@ -133,6 +137,7 @@
           const r = await call('load');
           engineCount = r.count;
           headerOnly = r.headerOnly || 0;
+          eligibleTotal = r.eligibleTotal || 0;
           updatedAt = r.updatedAt;
           saveError = r.saveError || null;
         } catch (e) {
@@ -173,7 +178,7 @@
     } finally {
       building = false;
     }
-    await engineProxy.flush({ headerOnly });
+    await engineProxy.flush({ headerOnly, eligibleTotal: buildTotal });
   }
 
   // Open a single message by its numeric id, with a tab fallback.
@@ -234,7 +239,9 @@
         return { type: 'status', status: status() };
       case 'reconcile':
         await ensureLoaded();
-        await OmniEvents.reconcile(controller);
+        const reconResult = await OmniEvents.reconcile(controller);
+        eligibleTotal = reconResult.eligibleTotal || 0;
+        await engineProxy.flush({ headerOnly, eligibleTotal });
         return { type: 'status', status: status() };
       case 'open':
         await openMessage(msg);

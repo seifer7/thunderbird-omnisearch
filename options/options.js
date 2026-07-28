@@ -299,7 +299,12 @@
       statusEl.textContent = 'No index yet — click Rebuild to index your mail.';
       return;
     }
-    const parts = [`${s.count.toLocaleString()} messages indexed`];
+    const parts = [];
+    if (s.eligibleTotal > 0) {
+      parts.push(`${s.count.toLocaleString()} / ${s.eligibleTotal.toLocaleString()} messages indexed`);
+    } else {
+      parts.push(`${s.count.toLocaleString()} messages indexed`);
+    }
     if (s.headerOnly > 0) {
       parts.push(`${s.headerOnly.toLocaleString()} header-only (body not downloaded — enable full offline sync to index them)`);
     }
