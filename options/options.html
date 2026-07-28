@@ -42,7 +42,26 @@
       }
       button:hover { background: var(--hover); }
       button:disabled { opacity: 0.5; cursor: default; }
-      button.danger { border-color: #b3261e; color: #b3261e; }
+      .folder-tree {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 12px;
+        max-height: 260px;
+        overflow-y: auto;
+      }
+      .folder-tree .acct-header {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 10px 0 4px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--border);
+      }
+      .folder-tree .acct-header:first-child { margin-top: 2px; }
+      .folder-tree label { margin-bottom: 4px; }
+      .folder-tree .empty { color: var(--muted); font-size: 13px; }
       button.danger:hover { background: rgba(179, 38, 30, 0.08); }
       .banner {
         display: flex;
@@ -96,6 +115,26 @@
     <h1>Accounts to index</h1>
     <div id="accounts"></div>
     <p class="hint">Unchecked accounts are excluded from search.</p>
+
+    <h1>Folders to index</h1>
+    <label>
+      <input type="radio" name="folderIndexMode" id="folderIndexAll" value="all" checked />
+      <span>All folders — index every folder in the included accounts</span>
+    </label>
+    <label style="margin-top: 8px">
+      <input type="radio" name="folderIndexMode" id="folderIndexIncluded" value="included" />
+      <span>Included only — index only the folders you explicitly select below</span>
+    </label>
+
+    <div id="foldersExcludeSection" style="margin-top: 12px">
+      <p class="hint" style="margin: 0 0 6px">Folders to exclude — checked folders are skipped:</p>
+      <div id="foldersExcludeTree" class="folder-tree"></div>
+    </div>
+
+    <div id="foldersIncludeSection" style="margin-top: 12px" hidden>
+      <p class="hint" style="margin: 0 0 6px">Folders to include — only checked folders are indexed:</p>
+      <div id="foldersIncludeTree" class="folder-tree"></div>
+    </div>
 
     <label style="margin-top: 12px">
       <input type="checkbox" id="includeSpamTrash" />
