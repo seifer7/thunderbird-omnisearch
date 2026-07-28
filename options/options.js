@@ -21,6 +21,7 @@
   const progressEl = document.getElementById('progress');
   const rebuildBtn = document.getElementById('rebuild');
   const reconcileBtn = document.getElementById('reconcile');
+  const refreshStatusBtn = document.getElementById('refreshStatus');
   const clearBtn = document.getElementById('clear');
   const applyBanner = document.getElementById('applyBanner');
   const applyBannerText = document.getElementById('applyBannerText');

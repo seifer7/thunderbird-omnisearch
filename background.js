@@ -19,6 +19,23 @@
   // Last index-save error reported by the worker (null = saved OK). Surfaced in
   // status so the Settings page can warn that the index won't survive a restart.
   let saveError = null;
+  // Whether a background eligible-count pass is running (guards against overlaps).
+  let eligibleCountRunning = false;
+
+  // Walk the folder tree (metadata only — no body reads, no index mutations) and
+  // update eligibleTotal. Safe to call at any time, including during a build.
+  async function countEligibleInBackground() {
+    if (eligibleCountRunning) return;
+    eligibleCountRunning = true;
+    try {
+      const folders = await OmniIndexer.flattenFolders();
+      eligibleTotal = await OmniIndexer.totalMessageCount(folders);
+    } catch (e) {
+      console.error('[OmniSearch] eligible count failed:', e);
+    } finally {
+      eligibleCountRunning = false;
+    }
+  }
 
   // ---- Worker RPC ----
   // Shared request/response envelope for our workers: post {reqId, ...payload},
@@ -237,6 +254,11 @@
         await ensureLoaded();
         await engineProxy.clear();
         return { type: 'status', status: status() };
+      case 'countEligible':
+        // Recount eligible messages in the background (metadata only, no body
+        // reads). Does not affect an ongoing build; returns the updated status.
+        void countEligibleInBackground();
+        return { type: 'status', status: status() };
       case 'reconcile':
         await ensureLoaded();
         const reconResult = await OmniEvents.reconcile(controller);
@@ -386,7 +408,6 @@
   safe('runtime.onStartup', () =>
     messenger.runtime.onStartup.addListener(() => void ensureLoaded()),
   );
-
   // Keepalive alarm handler + (re)apply when the setting changes.
   safe('alarms.onAlarm', () =>
     messenger.alarms.onAlarm.addListener((alarm) => {
@@ -409,6 +430,19 @@
       if (area === 'local' && changes.settings) {
         void applyKeepWarm();
         void applySearchUI();
+        // Re-count eligible messages whenever account/folder/spam settings change
+        // so the status line stays accurate without needing a rebuild.
+        const prev = (changes.settings.oldValue && changes.settings.oldValue) || {};
+        const next = (changes.settings.newValue && changes.settings.newValue) || {};
+        if (
+          JSON.stringify(prev.excludedAccounts) !== JSON.stringify(next.excludedAccounts) ||
+          JSON.stringify(prev.excludedFolderIds) !== JSON.stringify(next.excludedFolderIds) ||
+          JSON.stringify(prev.includedFolderIds) !== JSON.stringify(next.includedFolderIds) ||
+          prev.folderIndexMode !== next.folderIndexMode ||
+          prev.includeSpamTrash !== next.includeSpamTrash
+        ) {
+          void countEligibleInBackground();
+        }
       }
     }),
   );
@@ -416,5 +450,7 @@
   void applySearchUI();
 
   console.log('[OmniSearch] background loaded');
-  void ensureLoaded();
+  // Load the persisted index, then immediately count eligible messages in the
+  // background so eligibleTotal is populated before the options page is opened.
+  void ensureLoaded().then(() => void countEligibleInBackground());
 })();
