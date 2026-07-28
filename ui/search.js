@@ -10,12 +10,16 @@
   const progressEl = $('progress');
   const emptyEl = $('empty');
   const loadingEl = $('loading');
+  const sortEl = $('sort');
 
   // Launched as the centered standalone window (background opens
   // ui/search.html#modal) rather than the toolbar-anchored popup. Enables
   // Escape-to-close and self-resizing so the window grows from just the search
   // field to fit results. The <html> also carries class "modal" for layout.
   const isModal = location.hash === '#modal';
+  // Launched as a content tab in the main Thunderbird window. Each tab has its
+  // own independent query/results/sort state. The <html> carries class "tab".
+  const isTab = location.hash === '#tab';
   let modalWinId = null;
   // The window's opening height. Must track SPOTLIGHT_H in background.js. The
   // window never shrinks below this, so the empty/loading state never triggers a
@@ -137,6 +141,33 @@
     }
   }
 
+  // Sort results client-side according to the chosen sort key. The results
+  // arrive from MiniSearch already sorted by descending relevance score, which
+  // is the 'relevance' option, so no work is needed for that case.
+  function sortResults(results, sortBy) {
+    if (!sortBy || sortBy === 'relevance') return results;
+    const sorted = [...results];
+    switch (sortBy) {
+      case 'date-desc': sorted.sort((a, b) => (b.date || 0) - (a.date || 0)); break;
+      case 'date-asc':  sorted.sort((a, b) => (a.date || 0) - (b.date || 0)); break;
+      case 'subject':   sorted.sort((a, b) => (a.subject || '').localeCompare(b.subject || '')); break;
+      case 'from':      sorted.sort((a, b) => (a.from || '').localeCompare(b.from || '')); break;
+      case 'to':        sorted.sort((a, b) => (a.to || '').localeCompare(b.to || '')); break;
+      case 'folder':    sorted.sort((a, b) => (a.folderName || '').localeCompare(b.folderName || '')); break;
+    }
+    return sorted;
+  }
+
+  // Attach a normalised relevance percentage to each result. The top-scoring hit
+  // is 100%; all others are expressed relative to it. MiniSearch scores are
+  // unbounded positive numbers, so normalising to the max-in-set is the most
+  // meaningful way to turn them into a human-readable percentage.
+  function withRelevance(results) {
+    const maxScore = results.reduce((m, r) => Math.max(m, r.score || 0), 0);
+    if (maxScore <= 0) return results;
+    return results.map((r) => ({ ...r, _pct: Math.round(((r.score || 0) / maxScore) * 100) }));
+  }
+
   function renderResults(results, query) {
     resultsEl.replaceChildren();
     emptyEl.textContent = '';
@@ -145,7 +176,11 @@
       emptyEl.textContent = 'No matches.';
       return;
     }
-    for (const r of results) {
+
+    const normed = withRelevance(results);
+    const sorted = sortResults(normed, sortEl ? sortEl.value : 'relevance');
+
+    for (const r of sorted) {
       const li = document.createElement('li');
       li.className = 'result';
       li.tabIndex = 0; // focusable for keyboard navigation
@@ -171,13 +206,24 @@
         subject.appendChild(badge); // .badge margin-left provides the gap
       }
 
+      // Relevance score badge (percentage of the top-scoring result).
+      const scoreWrap = document.createElement('span');
+      scoreWrap.className = 'date-score';
+      if (r._pct != null) {
+        const scoreEl = document.createElement('span');
+        scoreEl.className = 'score';
+        scoreEl.title = 'Relevance score';
+        scoreEl.textContent = r._pct + '%';
+        scoreWrap.appendChild(scoreEl);
+      }
       const date = document.createElement('span');
       date.className = 'date';
       date.textContent = fmtDate(r.date);
+      scoreWrap.appendChild(date);
 
       const row = document.createElement('div');
       row.className = 'row';
-      row.append(subject, date);
+      row.append(subject, scoreWrap);
 
       // A deduplicated result lists every folder the email appears in (e.g. a
       // Gmail message in both Inbox and All Mail). Fall back to the single
@@ -198,14 +244,21 @@
       li.append(row, meta, preview);
       li.addEventListener('click', async () => {
         await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId });
-        // Close the popup once the message opens, unless the user opted to keep
-        // it open in settings.
-        const settings = await getSettings();
-        if (!settings.keepOpenAfterResult) window.close();
+        // In tab mode the tab should stay open. In popup/spotlight mode, close
+        // unless the user opted to keep it open in settings.
+        if (!isTab) {
+          const settings = await getSettings();
+          if (!settings.keepOpenAfterResult) window.close();
+        }
       });
       resultsEl.appendChild(li);
     }
   }
+
+  // Cache last results and query so the sort dropdown can re-render without
+  // hitting the index again.
+  let lastResults = [];
+  let lastQuery = '';
 
   let searchSeq = 0;
   async function runSearch() {
@@ -224,8 +277,16 @@
       return;
     }
     if (seq !== searchSeq) return; // a newer keystroke superseded this one
-    if (reply && reply.type === 'results') renderResults(reply.results, query);
-    else emptyEl.textContent = 'No response from the index.';
+    if (reply && reply.type === 'results') {
+      lastResults = reply.results;
+      lastQuery = query;
+      renderResults(lastResults, lastQuery);
+      // Update the tab's title with the query so multiple open tabs are
+      // distinguishable by the text on their tab strip.
+      if (isTab) document.title = query.trim() ? `OmniSearch: ${query.trim()}` : 'OmniSearch';
+    } else {
+      emptyEl.textContent = 'No response from the index.';
+    }
   }
 
   // Kick off a full index build from the empty-state "Rebuild" link. The
@@ -291,7 +352,16 @@
     syncClearButton();
     resultsEl.replaceChildren();
     emptyEl.textContent = '';
+    lastResults = [];
+    lastQuery = '';
+    if (isTab) document.title = 'OmniSearch';
     queryInput.focus();
+  });
+
+  // Re-render the cached results with the newly chosen sort order without
+  // re-querying the index.
+  sortEl.addEventListener('change', () => {
+    renderResults(lastResults, lastQuery);
   });
 
   // Esc clears the field when it has text; when empty, the anchored popup closes
@@ -341,12 +411,12 @@
   // Index controls (Rebuild / Verify & repair) now live in the settings page.
   // Close the search window once Settings opens so it doesn't linger over the
   // options tab. (The toolbar popup would close on blur anyway; the centered
-  // window must close itself.) Await the open first so closing doesn't abort it.
+  // window must close itself.) In tab mode the search tab should stay open.
   $('settings').addEventListener('click', async () => {
     try {
       await messenger.runtime.openOptionsPage();
     } finally {
-      window.close();
+      if (!isTab) window.close();
     }
   });
 
@@ -372,6 +442,11 @@
     // Dismiss with Escape or by opening a result. (We deliberately do NOT close
     // on window blur: GNOME/Wayland fires a blur when you start dragging the
     // window, which made it vanish mid-move.)
+  }
+
+  if (isTab) {
+    // Full-width layout for the tab context (same approach as #modal).
+    document.documentElement.classList.add('tab');
   }
 
   // Show the (non-blocking) loading hint until the first status reply. The field

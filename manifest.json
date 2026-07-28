@@ -16,7 +16,8 @@
     "accountsRead",
     "storage",
     "unlimitedStorage",
-    "alarms"
+    "alarms",
+    "tabs"
   ],
   "background": {
     "scripts": [
