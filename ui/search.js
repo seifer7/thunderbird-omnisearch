@@ -25,6 +25,9 @@
   const fpAccountsEl = $('fp-accounts');
   const fpFoldersEl = $('fp-folders');
 
+  const MILLIS_PER_DAY = 86400000;   // milliseconds in one day
+  const FILTER_DEBOUNCE_MS = 120;    // debounce delay for text filter inputs
+
   // Launched as the centered standalone window (background opens
   // ui/search.html#modal) rather than the toolbar-anchored popup. Enables
   // Escape-to-close and self-resizing so the window grows from just the search
@@ -147,7 +150,7 @@
       }
       // Date to (end of that day, local time)
       if (filters.dateTo) {
-        if ((r.date || 0) > new Date(filters.dateTo).getTime() + 86400000 - 1) return false;
+        if ((r.date || 0) > new Date(filters.dateTo).getTime() + MILLIS_PER_DAY - 1) return false;
       }
       // Subject substring
       if (filters.subject && !(r.subject || '').toLowerCase().includes(filters.subject.toLowerCase())) return false;
@@ -273,15 +276,15 @@
   let fpSubjectDebounce, fpFromDebounce, fpToDebounce;
   fpSubjectEl.addEventListener('input', () => {
     clearTimeout(fpSubjectDebounce);
-    fpSubjectDebounce = setTimeout(() => { filters.subject = fpSubjectEl.value; applyAndRender(); }, 120);
+    fpSubjectDebounce = setTimeout(() => { filters.subject = fpSubjectEl.value; applyAndRender(); }, FILTER_DEBOUNCE_MS);
   });
   fpFromEl.addEventListener('input', () => {
     clearTimeout(fpFromDebounce);
-    fpFromDebounce = setTimeout(() => { filters.from = fpFromEl.value; applyAndRender(); }, 120);
+    fpFromDebounce = setTimeout(() => { filters.from = fpFromEl.value; applyAndRender(); }, FILTER_DEBOUNCE_MS);
   });
   fpToEl.addEventListener('input', () => {
     clearTimeout(fpToDebounce);
-    fpToDebounce = setTimeout(() => { filters.to = fpToEl.value; applyAndRender(); }, 120);
+    fpToDebounce = setTimeout(() => { filters.to = fpToEl.value; applyAndRender(); }, FILTER_DEBOUNCE_MS);
   });
 
   fpResetBtn.addEventListener('click', () => {
@@ -360,13 +363,14 @@
   // ---- Sorting ----
   // Sort results client-side according to the chosen sort key. The results
   // arrive from MiniSearch already sorted by descending relevance score, which
-  // is the 'relevance' option, so no work is needed for that case.
+  // is the 'relevance' option, so no work is needed for that case. Messages
+  // with no date sort as if they were the oldest possible entry.
   function sortResults(results, sortBy) {
     if (!sortBy || sortBy === 'relevance') return results;
     const sorted = [...results];
     switch (sortBy) {
-      case 'date-desc': sorted.sort((a, b) => (b.date || 0) - (a.date || 0)); break;
-      case 'date-asc':  sorted.sort((a, b) => (a.date || 0) - (b.date || 0)); break;
+      case 'date-desc': sorted.sort((a, b) => (b.date || Number.MIN_SAFE_INTEGER) - (a.date || Number.MIN_SAFE_INTEGER)); break;
+      case 'date-asc':  sorted.sort((a, b) => (a.date || Number.MIN_SAFE_INTEGER) - (b.date || Number.MIN_SAFE_INTEGER)); break;
       case 'subject':   sorted.sort((a, b) => (a.subject || '').localeCompare(b.subject || '')); break;
       case 'from':      sorted.sort((a, b) => (a.from || '').localeCompare(b.from || '')); break;
       case 'to':        sorted.sort((a, b) => (a.to || '').localeCompare(b.to || '')); break;
@@ -381,7 +385,7 @@
   // meaningful way to turn them into a human-readable percentage.
   function withRelevance(results) {
     const maxScore = results.reduce((m, r) => Math.max(m, r.score || 0), 0);
-    if (maxScore <= 0) return results;
+    if (maxScore < Number.EPSILON) return results;
     return results.map((r) => ({ ...r, _pct: Math.round(((r.score || 0) / maxScore) * 100) }));
   }
 
@@ -516,7 +520,10 @@
       renderResults(lastResults, lastQuery);
       // Update the tab's title with the query so multiple open tabs are
       // distinguishable by the text on their tab strip.
-      if (isTab) document.title = query.trim() ? `OmniSearch: ${query.trim()}` : 'OmniSearch';
+      if (isTab) {
+        const trimmed = query.trim();
+        document.title = trimmed ? `OmniSearch: ${trimmed}` : 'OmniSearch';
+      }
     } else {
       emptyEl.textContent = 'No response from the index.';
     }
