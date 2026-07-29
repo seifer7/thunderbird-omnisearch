@@ -50,7 +50,7 @@
         eligibleTotal = await OmniIndexer.totalMessageCount(folders, abort.signal);
       }
     } catch (e) {
-      if (!(e && e.name === 'AbortError')) {
+      if (!abort.signal.aborted && runId === eligibleCountRunId) {
         console.error('[OmniSearch] eligible count failed:', e);
       }
     } finally {
