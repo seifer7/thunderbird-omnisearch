@@ -355,8 +355,11 @@
   // updated total once the count finishes.
   refreshStatusBtn.addEventListener('click', async () => {
     refreshStatusBtn.disabled = true;
-    await send({ type: 'countEligible' });
-    refreshStatusBtn.disabled = false;
+    try {
+      await send({ type: 'countEligible' });
+    } finally {
+      refreshStatusBtn.disabled = false;
+    }
     void refreshStatus();
   });
 
