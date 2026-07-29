@@ -3,7 +3,8 @@
   --fg: #1c1b22;
   --muted: #6b6b75;
   --border: #d7d7dc;
-  /* Sized so two native date fields show full locale date text + picker affordance. */
+  /* Panel width sized to fit two date fields side-by-side without truncation.
+     --filter-date-min-width is the minimum width of each individual date field. */
   --filter-panel-width: 296px;
   --filter-date-min-width: 134px;
   /* Use the platform/theme accent colour, not a hardcoded blue. */
