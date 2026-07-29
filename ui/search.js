@@ -147,6 +147,7 @@
   // Returns { y, m, d } or null for invalid input. Shared by start/end helpers
   // so filter bounds stay consistent and DST-safe.
   function parseLocalDateParts(dateStr) {
+    if (!dateStr) return null;
     const [y, m, d] = String(dateStr).split('-').map(Number);
     if (![y, m, d].every(Number.isFinite)) return null;
     return { y, m, d };
