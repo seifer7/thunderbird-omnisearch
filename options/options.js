@@ -231,7 +231,7 @@
 
     const saveIncluded = async () => {
       const s = await getSettings();
-      s.includedFolderIds = [...includedIds];
+      s.includedFolderIds = [...includedIds].sort();
       await messenger.storage.local.set({ [KEY]: s });
       showBanner('reconcile');
     };
