@@ -8,6 +8,7 @@
   const searchUIPopup = document.getElementById('searchUIPopup');
   const searchUISpotlight = document.getElementById('searchUISpotlight');
   const searchUITab = document.getElementById('searchUITab');
+  const filterPanelSideEl = document.getElementById('filterPanelSide');
   const includeSpamTrash = document.getElementById('includeSpamTrash');
   const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
   const bodyIndexLimit = document.getElementById('bodyIndexLimit');
@@ -86,6 +87,7 @@
     searchUIPopup.checked = ui === 'popup';
     searchUITab.checked = ui === 'tab';
     searchUISpotlight.checked = !ui || ui === 'spotlight';
+    filterPanelSideEl.value = settings.filterPanelSide === 'left' ? 'left' : 'right';
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
     bodyIndexLimit.value = String(settings.bodyIndexLimit || 4000);
@@ -109,6 +111,12 @@
   searchUIPopup.addEventListener('change', saveSearchUI);
   searchUISpotlight.addEventListener('change', saveSearchUI);
   searchUITab.addEventListener('change', saveSearchUI);
+
+  filterPanelSideEl.addEventListener('change', async () => {
+    const settings = await getSettings();
+    settings.filterPanelSide = filterPanelSideEl.value;
+    await messenger.storage.local.set({ [KEY]: settings });
+  });
 
   keepWarm.addEventListener('change', async () => {
     const settings = await getSettings();

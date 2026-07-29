@@ -4,8 +4,8 @@
   --muted: #6b6b75;
   --border: #d7d7dc;
   /* Sized so two native date fields show full locale date text + picker affordance. */
-  --filter-panel-width: 236px;
-  --filter-date-min-width: 104px;
+  --filter-panel-width: 296px;
+  --filter-date-min-width: 134px;
   /* Use the platform/theme accent colour, not a hardcoded blue. */
   --accent: AccentColor;
   --hover: #f0f6ff;
@@ -278,7 +278,7 @@ html.tab #filter-panel {
   align-self: flex-start;
 }
 
-/* Panel header (title + side buttons + reset) */
+/* Panel header (title + reset) */
 .fp-head {
   display: flex;
   align-items: center;
@@ -297,24 +297,6 @@ html.tab #filter-panel {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   flex: 1;
-}
-.fp-side-btns { display: flex; gap: 2px; }
-.fp-side-btn {
-  padding: 0 5px;
-  height: 22px;
-  font-size: 12px;
-  line-height: 1;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--muted);
-  cursor: pointer;
-}
-.fp-side-btn:hover { background: var(--hover); color: var(--fg); }
-.fp-side-btn.fp-side-active {
-  background: var(--hover);
-  color: var(--fg);
-  border-color: var(--accent);
 }
 
 /* Individual filter sections */

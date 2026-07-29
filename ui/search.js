@@ -14,8 +14,6 @@
   const filterToggleBtn = $('filter-toggle');
   const filterPanelEl = $('filter-panel');
   const contentLayoutEl = $('content-layout');
-  const fpLeftBtn = $('fp-left');
-  const fpRightBtn = $('fp-right');
   const fpResetBtn = $('fp-reset');
   const fpDateFromEl = $('fp-date-from');
   const fpDateToEl = $('fp-date-to');
@@ -189,7 +187,7 @@
   }
 
   // ---- Filter panel toggle ----
-  // 'right' (default) or 'left'. Remembered within the session.
+  // 'right' (default) or 'left'. Persisted in settings (options page).
   let filterPanelSide = 'right';
 
   function setFilterPanelVisible(visible, side) {
@@ -197,19 +195,11 @@
     filterPanelEl.hidden = !visible;
     contentLayoutEl.classList.toggle('filters-left',  visible && filterPanelSide === 'left');
     contentLayoutEl.classList.toggle('filters-right', visible && filterPanelSide === 'right');
-    fpLeftBtn.classList.toggle('fp-side-active',  filterPanelSide === 'left');
-    fpRightBtn.classList.toggle('fp-side-active', filterPanelSide === 'right');
     filterToggleBtn.title = visible ? 'Hide filter panel' : 'Show filter panel';
   }
 
   filterToggleBtn.addEventListener('click', () => {
     setFilterPanelVisible(filterPanelEl.hidden, null);
-  });
-  fpLeftBtn.addEventListener('click', () => {
-    setFilterPanelVisible(true, 'left');
-  });
-  fpRightBtn.addEventListener('click', () => {
-    setFilterPanelVisible(true, 'right');
   });
 
   // Update the funnel button with a dot indicator when any filter is active.
@@ -710,6 +700,11 @@
     // Full-width layout for the tab context (same approach as #modal).
     document.documentElement.classList.add('tab');
   }
+
+  // Load the filter panel side preference from settings.
+  getSettings().then((s) => {
+    filterPanelSide = s.filterPanelSide === 'left' ? 'left' : 'right';
+  }).catch(() => {});
 
   // Show the (non-blocking) loading hint until the first status reply. The field
   // stays enabled and focused the whole time so the user can type immediately.
