@@ -41,7 +41,6 @@
     eligibleTotal = 0;
     try {
       const folders = await OmniIndexer.flattenFolders();
-      if (abort.signal.aborted || runId !== eligibleCountRunId) return;
       const startDateMs = await OmniIndexer.getIndexStartDate();
       if (abort.signal.aborted || runId !== eligibleCountRunId) return;
       if (startDateMs > 0) {
