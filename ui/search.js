@@ -706,8 +706,9 @@
     filterPanelSide = s.filterPanelSide === 'left' ? 'left' : 'right';
   }).catch(() => {});
 
-  // Show the (non-blocking) loading hint until the first status reply. The field
-  // stays enabled and focused the whole time so the user can type immediately.
+  // Initialize dynamic filter lists in their empty state, then show the
+  // (non-blocking) loading hint until the first status reply. The field stays
+  // enabled and focused the whole time so the user can type immediately.
   buildDynamicFilters([]); // show empty-state hints before the first search
   showLoadingHint(true);
   queryInput.focus();
