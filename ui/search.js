@@ -11,6 +11,19 @@
   const emptyEl = $('empty');
   const loadingEl = $('loading');
   const sortEl = $('sort');
+  const filterToggleBtn = $('filter-toggle');
+  const filterPanelEl = $('filter-panel');
+  const contentLayoutEl = $('content-layout');
+  const fpLeftBtn = $('fp-left');
+  const fpRightBtn = $('fp-right');
+  const fpResetBtn = $('fp-reset');
+  const fpDateFromEl = $('fp-date-from');
+  const fpDateToEl = $('fp-date-to');
+  const fpSubjectEl = $('fp-subject');
+  const fpFromEl = $('fp-from');
+  const fpToEl = $('fp-to');
+  const fpAccountsEl = $('fp-accounts');
+  const fpFoldersEl = $('fp-folders');
 
   // Launched as the centered standalone window (background opens
   // ui/search.html#modal) rather than the toolbar-anchored popup. Enables
@@ -87,6 +100,209 @@
     return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
+  // ---- Account name lookup ----
+  // Map of accountId → display name. Populated once on load; used by the dynamic
+  // Accounts multiselect in the filter panel. Falls back to the raw ID if the
+  // account is not found (e.g. since removed).
+  const accountNames = new Map();
+  async function loadAccountNames() {
+    try {
+      const accounts = await messenger.accounts.list();
+      for (const a of accounts) {
+        accountNames.set(a.id, a.type ? `${a.name} (${a.type})` : a.name);
+      }
+    } catch (e) {
+      // Silent fail — raw IDs will display as fallback.
+    }
+  }
+  void loadAccountNames();
+
+  // ---- Filter state ----
+  // All filter values. Empty string / empty Set = inactive (pass everything).
+  const filters = {
+    dateFrom: '', // 'YYYY-MM-DD' string
+    dateTo: '',   // 'YYYY-MM-DD' string
+    subject: '',
+    from: '',
+    to: '',
+    accounts: new Set(), // selected accountIds; empty = all
+    folders: new Set(),  // selected folder names; empty = all
+  };
+
+  function hasActiveFilters() {
+    return !!(
+      filters.dateFrom || filters.dateTo ||
+      filters.subject || filters.from || filters.to ||
+      filters.accounts.size > 0 || filters.folders.size > 0
+    );
+  }
+
+  // Apply all active filters to an array of results. Does not mutate the input.
+  function applyFilters(results) {
+    if (!hasActiveFilters()) return results;
+    return results.filter((r) => {
+      // Date from (start of that day, local time)
+      if (filters.dateFrom) {
+        if ((r.date || 0) < new Date(filters.dateFrom).getTime()) return false;
+      }
+      // Date to (end of that day, local time)
+      if (filters.dateTo) {
+        if ((r.date || 0) > new Date(filters.dateTo).getTime() + 86400000 - 1) return false;
+      }
+      // Subject substring
+      if (filters.subject && !(r.subject || '').toLowerCase().includes(filters.subject.toLowerCase())) return false;
+      // From substring
+      if (filters.from && !(r.from || '').toLowerCase().includes(filters.from.toLowerCase())) return false;
+      // To substring
+      if (filters.to && !(r.to || '').toLowerCase().includes(filters.to.toLowerCase())) return false;
+      // Account multiselect (empty set = all)
+      if (filters.accounts.size > 0 && !filters.accounts.has(r.accountId || '')) return false;
+      // Folder multiselect (empty set = all)
+      if (filters.folders.size > 0) {
+        const rFolders = (r.folders && r.folders.length ? r.folders : [r.folderName]).filter(Boolean);
+        if (!rFolders.some((f) => filters.folders.has(f))) return false;
+      }
+      return true;
+    });
+  }
+
+  // ---- Filter panel toggle ----
+  // 'right' (default) or 'left'. Remembered within the session.
+  let filterPanelSide = 'right';
+
+  function setFilterPanelVisible(visible, side) {
+    if (side) filterPanelSide = side;
+    filterPanelEl.hidden = !visible;
+    contentLayoutEl.classList.toggle('filters-left',  visible && filterPanelSide === 'left');
+    contentLayoutEl.classList.toggle('filters-right', visible && filterPanelSide === 'right');
+    fpLeftBtn.classList.toggle('fp-side-active',  filterPanelSide === 'left');
+    fpRightBtn.classList.toggle('fp-side-active', filterPanelSide === 'right');
+    filterToggleBtn.title = visible ? 'Hide filter panel' : 'Show filter panel';
+  }
+
+  filterToggleBtn.addEventListener('click', () => {
+    setFilterPanelVisible(filterPanelEl.hidden, null);
+  });
+  fpLeftBtn.addEventListener('click', () => {
+    setFilterPanelVisible(true, 'left');
+  });
+  fpRightBtn.addEventListener('click', () => {
+    setFilterPanelVisible(true, 'right');
+  });
+
+  // Update the funnel button with a dot indicator when any filter is active.
+  function updateFilterActiveIndicator() {
+    filterToggleBtn.classList.toggle('filter-active', hasActiveFilters());
+  }
+
+  // ---- Dynamic multiselects (Accounts / Folders) ----
+  // Rebuilds the checkbox list for a multiselect container. Stale selections
+  // (values no longer present in the result set) are removed from the Set first
+  // so they don't silently swallow all results.
+  function buildCheckboxes(container, values, selectedSet, displayFn, onChange) {
+    // Remove selections that are no longer in the current result set.
+    for (const sel of [...selectedSet]) {
+      if (!values.includes(sel)) selectedSet.delete(sel);
+    }
+    container.replaceChildren();
+    if (values.length === 0) {
+      const hint = document.createElement('span');
+      hint.className = 'fp-empty-hint';
+      hint.textContent = 'No results yet';
+      container.appendChild(hint);
+      return;
+    }
+    for (const value of values) {
+      const label = document.createElement('label');
+      label.className = 'fp-check-label';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = selectedSet.has(value);
+      cb.addEventListener('change', () => {
+        if (cb.checked) selectedSet.add(value);
+        else selectedSet.delete(value);
+        onChange();
+      });
+      const span = document.createElement('span');
+      span.textContent = displayFn(value);
+      label.append(cb, span);
+      container.appendChild(label);
+    }
+  }
+
+  // Rebuild the Accounts and Folders multiselects from the current result set.
+  // Called after every new search so the options always reflect what's visible.
+  function buildDynamicFilters(results) {
+    const accountIds = new Set();
+    const folderNames = new Set();
+    for (const r of results) {
+      if (r.accountId) accountIds.add(r.accountId);
+      const rFolders = (r.folders && r.folders.length ? r.folders : [r.folderName]).filter(Boolean);
+      for (const f of rFolders) folderNames.add(f);
+    }
+    buildCheckboxes(
+      fpAccountsEl,
+      [...accountIds].sort((a, b) => (accountNames.get(a) || a).localeCompare(accountNames.get(b) || b)),
+      filters.accounts,
+      (id) => accountNames.get(id) || id,
+      applyAndRender,
+    );
+    buildCheckboxes(
+      fpFoldersEl,
+      [...folderNames].sort((a, b) => a.localeCompare(b)),
+      filters.folders,
+      (name) => name,
+      applyAndRender,
+    );
+  }
+
+  // ---- Filter input wiring ----
+  function applyAndRender() {
+    renderResults(lastResults, lastQuery);
+  }
+
+  fpDateFromEl.addEventListener('change', () => {
+    filters.dateFrom = fpDateFromEl.value;
+    applyAndRender();
+  });
+  fpDateToEl.addEventListener('change', () => {
+    filters.dateTo = fpDateToEl.value;
+    applyAndRender();
+  });
+
+  let fpSubjectDebounce, fpFromDebounce, fpToDebounce;
+  fpSubjectEl.addEventListener('input', () => {
+    clearTimeout(fpSubjectDebounce);
+    fpSubjectDebounce = setTimeout(() => { filters.subject = fpSubjectEl.value; applyAndRender(); }, 120);
+  });
+  fpFromEl.addEventListener('input', () => {
+    clearTimeout(fpFromDebounce);
+    fpFromDebounce = setTimeout(() => { filters.from = fpFromEl.value; applyAndRender(); }, 120);
+  });
+  fpToEl.addEventListener('input', () => {
+    clearTimeout(fpToDebounce);
+    fpToDebounce = setTimeout(() => { filters.to = fpToEl.value; applyAndRender(); }, 120);
+  });
+
+  fpResetBtn.addEventListener('click', () => {
+    filters.dateFrom = '';
+    filters.dateTo = '';
+    filters.subject = '';
+    filters.from = '';
+    filters.to = '';
+    filters.accounts.clear();
+    filters.folders.clear();
+    fpDateFromEl.value = '';
+    fpDateToEl.value = '';
+    fpSubjectEl.value = '';
+    fpFromEl.value = '';
+    fpToEl.value = '';
+    buildDynamicFilters(lastResults); // uncheck all checkboxes
+    applyAndRender();
+  });
+
+  // ---- Status rendering ----
+
   // The field is usable immediately (type-ahead): you can start typing while the
   // index loads/builds. The "Loading…" indicator stays up until the index is
   // genuinely ready — meaning it has finished loading AND any (re)build is done
@@ -141,6 +357,7 @@
     }
   }
 
+  // ---- Sorting ----
   // Sort results client-side according to the chosen sort key. The results
   // arrive from MiniSearch already sorted by descending relevance score, which
   // is the 'relevance' option, so no work is needed for that case.
@@ -168,16 +385,27 @@
     return results.map((r) => ({ ...r, _pct: Math.round(((r.score || 0) / maxScore) * 100) }));
   }
 
+  // ---- Results rendering ----
   function renderResults(results, query) {
     resultsEl.replaceChildren();
     emptyEl.textContent = '';
-    if (!query.trim()) return;
-    if (results.length === 0) {
-      emptyEl.textContent = 'No matches.';
+    if (!query.trim()) {
+      updateFilterActiveIndicator();
       return;
     }
 
-    const normed = withRelevance(results);
+    const filtered = applyFilters(results);
+
+    if (filtered.length === 0) {
+      emptyEl.textContent =
+        results.length > 0 && hasActiveFilters()
+          ? 'No matches for the current filters.'
+          : 'No matches.';
+      updateFilterActiveIndicator();
+      return;
+    }
+
+    const normed = withRelevance(filtered);
     const sorted = sortResults(normed, sortEl ? sortEl.value : 'relevance');
 
     for (const r of sorted) {
@@ -253,10 +481,12 @@
       });
       resultsEl.appendChild(li);
     }
+
+    updateFilterActiveIndicator();
   }
 
-  // Cache last results and query so the sort dropdown can re-render without
-  // hitting the index again.
+  // Cache last results and query so sort and filter changes can re-render
+  // without hitting the index again.
   let lastResults = [];
   let lastQuery = '';
 
@@ -280,6 +510,9 @@
     if (reply && reply.type === 'results') {
       lastResults = reply.results;
       lastQuery = query;
+      // Rebuild the dynamic multiselects (accounts/folders) from the new result
+      // set, preserving any existing selections that are still valid.
+      buildDynamicFilters(lastResults);
       renderResults(lastResults, lastQuery);
       // Update the tab's title with the query so multiple open tabs are
       // distinguishable by the text on their tab strip.
@@ -350,10 +583,12 @@
   clearBtn.addEventListener('click', () => {
     queryInput.value = '';
     syncClearButton();
-    resultsEl.replaceChildren();
-    emptyEl.textContent = '';
     lastResults = [];
     lastQuery = '';
+    resultsEl.replaceChildren();
+    emptyEl.textContent = '';
+    buildDynamicFilters([]); // clear the dynamic option lists
+    updateFilterActiveIndicator();
     if (isTab) document.title = 'OmniSearch';
     queryInput.focus();
   });
