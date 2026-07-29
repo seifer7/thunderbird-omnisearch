@@ -12,11 +12,19 @@
   const includeSpamTrash = document.getElementById('includeSpamTrash');
   const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
   const bodyIndexLimit = document.getElementById('bodyIndexLimit');
+  const indexStartDate = document.getElementById('indexStartDate');
   const accountsEl = document.getElementById('accounts');
+  const folderIndexAll = document.getElementById('folderIndexAll');
+  const folderIndexIncluded = document.getElementById('folderIndexIncluded');
+  const foldersExcludeSection = document.getElementById('foldersExcludeSection');
+  const foldersIncludeSection = document.getElementById('foldersIncludeSection');
+  const foldersExcludeTree = document.getElementById('foldersExcludeTree');
+  const foldersIncludeTree = document.getElementById('foldersIncludeTree');
   const statusEl = document.getElementById('status');
   const progressEl = document.getElementById('progress');
   const rebuildBtn = document.getElementById('rebuild');
   const reconcileBtn = document.getElementById('reconcile');
+  const refreshStatusBtn = document.getElementById('refreshStatus');
   const clearBtn = document.getElementById('clear');
   const applyBanner = document.getElementById('applyBanner');
   const applyBannerText = document.getElementById('applyBannerText');
@@ -91,6 +99,12 @@
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
     bodyIndexLimit.value = String(settings.bodyIndexLimit || 4000);
+    indexStartDate.value = settings.indexStartDate || '';
+    // Folder index mode: default 'all'
+    const folderMode = settings.folderIndexMode || 'all';
+    folderIndexAll.checked = folderMode === 'all';
+    folderIndexIncluded.checked = folderMode === 'included';
+    updateFolderTreeVisibility();
   }
 
   keepOpen.addEventListener('change', async () => {
@@ -133,6 +147,16 @@
     showBanner('reconcile');
   });
 
+  indexStartDate.addEventListener('change', async () => {
+    const settings = await getSettings();
+    // Store as 'YYYY-MM-DD' string; empty value removes the filter.
+    settings.indexStartDate = indexStartDate.value || '';
+    await messenger.storage.local.set({ [KEY]: settings });
+    // Narrowing the window drops old messages; widening it adds them back —
+    // both are handled correctly by reconcile without a full rebuild.
+    showBanner('reconcile');
+  });
+
   indexEncryptedBodies.addEventListener('change', async () => {
     const settings = await getSettings();
     settings.indexEncryptedBodies = indexEncryptedBodies.checked;
@@ -147,6 +171,93 @@
     // Changes how much body text is extracted → needs a full rebuild to apply.
     showBanner('rebuild');
   });
+
+  // ---- Folder index mode + folder trees ----
+  function updateFolderTreeVisibility() {
+    const includeMode = folderIndexIncluded.checked;
+    foldersIncludeSection.hidden = !includeMode;
+    foldersExcludeSection.hidden = includeMode;
+  }
+
+  async function saveFolderIndexMode() {
+    const settings = await getSettings();
+    settings.folderIndexMode = folderIndexAll.checked ? 'all' : 'included';
+    await messenger.storage.local.set({ [KEY]: settings });
+    updateFolderTreeVisibility();
+    showBanner('reconcile');
+  }
+  folderIndexAll.addEventListener('change', saveFolderIndexMode);
+  folderIndexIncluded.addEventListener('change', saveFolderIndexMode);
+
+  // Render a checkbox tree of folders grouped by account into `container`.
+  // `selectedIds` is a live Set<string> of checked folder IDs; `onSave` is
+  // called (async) whenever the selection changes.
+  function renderFolderTree(accounts, selectedIds, container, onSave) {
+    container.textContent = '';
+    let hasAny = false;
+    for (const account of accounts) {
+      const folders =
+        account.folders || (account.rootFolder && account.rootFolder.subFolders) || [];
+      if (!folders.length) continue;
+      hasAny = true;
+      const header = document.createElement('div');
+      header.className = 'acct-header';
+      header.textContent = account.type ? `${account.name} (${account.type})` : account.name;
+      container.appendChild(header);
+
+      function walkFolders(folderList, depth) {
+        for (const folder of folderList) {
+          const label = document.createElement('label');
+          label.style.marginLeft = `${depth * 16}px`;
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = selectedIds.has(folder.id);
+          cb.addEventListener('change', async () => {
+            if (cb.checked) selectedIds.add(folder.id);
+            else selectedIds.delete(folder.id);
+            await onSave();
+          });
+          const span = document.createElement('span');
+          span.textContent = folder.name;
+          label.append(cb, span);
+          container.appendChild(label);
+          if (folder.subFolders && folder.subFolders.length) {
+            walkFolders(folder.subFolders, depth + 1);
+          }
+        }
+      }
+      walkFolders(folders, 0);
+    }
+    if (!hasAny) {
+      const msg = document.createElement('div');
+      msg.className = 'empty';
+      msg.textContent = 'No folders found.';
+      container.appendChild(msg);
+    }
+  }
+
+  async function loadFolderTrees() {
+    const accounts = await messenger.accounts.list(true);
+    const settings = await getSettings();
+    const includedIds = new Set(settings.includedFolderIds || []);
+    const excludedIds = new Set(settings.excludedFolderIds || []);
+
+    const saveIncluded = async () => {
+      const s = await getSettings();
+      s.includedFolderIds = [...includedIds].sort();
+      await messenger.storage.local.set({ [KEY]: s });
+      showBanner('reconcile');
+    };
+    const saveExcluded = async () => {
+      const s = await getSettings();
+      s.excludedFolderIds = [...excludedIds].sort();
+      await messenger.storage.local.set({ [KEY]: s });
+      showBanner('reconcile');
+    };
+
+    renderFolderTree(accounts, includedIds, foldersIncludeTree, saveIncluded);
+    renderFolderTree(accounts, excludedIds, foldersExcludeTree, saveExcluded);
+  }
 
   // ---- Accounts to index (opt-out: excluded ids are stored) ----
   async function setAccountIncluded(accountId, included) {
@@ -214,7 +325,12 @@
       statusEl.textContent = 'No index yet — click Rebuild to index your mail.';
       return;
     }
-    const parts = [`${s.count.toLocaleString()} messages indexed`];
+    const parts = [];
+    if (s.eligibleTotal > 0) {
+      parts.push(`${s.count.toLocaleString()} / ${s.eligibleTotal.toLocaleString()} messages indexed`);
+    } else {
+      parts.push(`${s.count.toLocaleString()} messages indexed`);
+    }
     if (s.headerOnly > 0) {
       parts.push(`${s.headerOnly.toLocaleString()} header-only (body not downloaded — enable full offline sync to index them)`);
     }
@@ -244,6 +360,19 @@
     reconcileBtn.disabled = true;
     statusEl.textContent = 'Verifying against your folders…';
     await send({ type: 'reconcile' });
+    void refreshStatus();
+  });
+
+  // Re-count eligible messages in the background (folder metadata only — no body
+  // reads, no effect on an ongoing build). The 1-second poll will pick up the
+  // updated total once the count finishes.
+  refreshStatusBtn.addEventListener('click', async () => {
+    refreshStatusBtn.disabled = true;
+    try {
+      await send({ type: 'countEligible' });
+    } finally {
+      refreshStatusBtn.disabled = false;
+    }
     void refreshStatus();
   });
 
@@ -295,5 +424,6 @@
 
   loadSettings();
   loadAccounts();
+  loadFolderTrees();
   refreshStatus();
 })();

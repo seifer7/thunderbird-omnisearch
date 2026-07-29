@@ -42,8 +42,28 @@
       }
       button:hover { background: var(--hover); }
       button:disabled { opacity: 0.5; cursor: default; }
-      button.danger { border-color: #b3261e; color: #b3261e; }
-      button.danger:hover { background: rgba(179, 38, 30, 0.08); }
+      .folder-tree {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 12px;
+        max-height: 260px;
+        overflow-y: auto;
+      }
+      .folder-tree .acct-header {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin: 10px 0 4px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid var(--border);
+      }
+      .folder-tree .acct-header:first-child { margin-top: 2px; }
+      .folder-tree label { margin-bottom: 4px; }
+      .folder-tree .empty { color: var(--muted); font-size: 13px; }
+button.danger { border-color: #b3261e; color: #b3261e; }
+button.danger:hover { background: rgba(179, 38, 30, 0.08); }
       .banner {
         display: flex;
         align-items: center;
@@ -112,11 +132,41 @@
     <div id="accounts"></div>
     <p class="hint">Unchecked accounts are excluded from search.</p>
 
+    <h1>Folders to index</h1>
+    <label>
+      <input type="radio" name="folderIndexMode" id="folderIndexAll" value="all" checked />
+      <span>All folders — index every folder in the included accounts</span>
+    </label>
+    <label style="margin-top: 8px">
+      <input type="radio" name="folderIndexMode" id="folderIndexIncluded" value="included" />
+      <span>Included only — index only the folders you explicitly select below</span>
+    </label>
+
+    <div id="foldersExcludeSection" style="margin-top: 12px">
+      <p class="hint" style="margin: 0 0 6px">Folders to exclude — checked folders are skipped:</p>
+      <div id="foldersExcludeTree" class="folder-tree"></div>
+    </div>
+
+    <div id="foldersIncludeSection" style="margin-top: 12px" hidden>
+      <p class="hint" style="margin: 0 0 6px">Folders to include — only checked folders are indexed:</p>
+      <div id="foldersIncludeTree" class="folder-tree"></div>
+    </div>
+
     <label style="margin-top: 12px">
       <input type="checkbox" id="includeSpamTrash" />
       <span>Include Junk (Spam) and Trash folders</span>
     </label>
     <p class="hint indent">Off by default — Junk and Trash are kept out of search.</p>
+
+    <label style="margin-top: 12px">
+      <span>Only index messages from:&nbsp;</span>
+      <input type="date" id="indexStartDate" />
+    </label>
+    <p class="hint indent">
+      Leave blank to index all mail. When a date is set, messages received before
+      that date are excluded from the index. Works alongside account and folder
+      filters. Changing this applies incrementally (no full rebuild needed).
+    </p>
 
     <label style="margin-top: 12px">
       <input type="checkbox" id="indexEncryptedBodies" />
@@ -158,12 +208,15 @@
     <div class="buttons">
       <button id="rebuild" type="button">Rebuild index</button>
       <button id="reconcile" type="button">Verify &amp; repair</button>
+      <button id="refreshStatus" type="button">Refresh status</button>
       <button id="clear" type="button" class="danger">Clear index</button>
     </div>
     <p class="hint">
       <strong>Rebuild</strong> re-indexes all of your mail from scratch.
       <strong>Verify &amp; repair</strong> checks the index against your folders and fixes any drift —
       removing stale entries and indexing anything missing.
+      <strong>Refresh status</strong> re-counts how many messages are eligible to be indexed
+      (folder metadata only — safe to use at any time, including during a build).
       <strong>Clear index</strong> deletes the search index from disk — including the
       decrypted contents of any encrypted emails you opted to index. Search stays
       empty until you rebuild.

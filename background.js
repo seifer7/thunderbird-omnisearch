@@ -11,6 +11,7 @@
   let buildProgress = 0;
   let buildTotal = 0;
   let headerOnly = 0;
+  let eligibleTotal = 0;
   let updatedAt;
   // Cached document count reported by the worker (we can't read engine.size
   // synchronously across the worker boundary).
@@ -18,6 +19,46 @@
   // Last index-save error reported by the worker (null = saved OK). Surfaced in
   // status so the Settings page can warn that the index won't survive a restart.
   let saveError = null;
+  // Whether a background eligible-count pass is running.
+  let eligibleCountRunning = false;
+  // Abort handle + generation id for interrupting stale eligible-count runs.
+  let eligibleCountAbort = null;
+  let eligibleCountRunId = 0;
+
+  // Walk the folder tree (metadata only — no body reads, no index mutations) and
+  // update eligibleTotal. Safe to call at any time, including during a build.
+  // When an index start date is configured, headers must be iterated to get an
+  // accurate count (getFolderInfo returns a raw total that ignores the date cut-off).
+  async function countEligibleInBackground() {
+    eligibleCountRunId++;
+    const runId = eligibleCountRunId;
+    if (eligibleCountAbort) eligibleCountAbort.abort();
+    const abort = new AbortController();
+    eligibleCountAbort = abort;
+    eligibleCountRunning = true;
+    // Recount restarted: clear the previous value immediately so the UI never
+    // shows a stale eligible total while the new settings are being recomputed.
+    eligibleTotal = 0;
+    try {
+      const folders = await OmniIndexer.flattenFolders();
+      const startDateMs = await OmniIndexer.getIndexStartDate();
+      if (abort.signal.aborted || runId !== eligibleCountRunId) return;
+      if (startDateMs > 0) {
+        eligibleTotal = await OmniIndexer.countEligibleHeaders(folders, startDateMs, abort.signal);
+      } else {
+        eligibleTotal = await OmniIndexer.totalMessageCount(folders, abort.signal);
+      }
+    } catch (e) {
+      if (!abort.signal.aborted && runId === eligibleCountRunId) {
+        console.error('[OmniSearch] eligible count failed:', e);
+      }
+    } finally {
+      if (runId === eligibleCountRunId) {
+        eligibleCountRunning = false;
+        if (eligibleCountAbort === abort) eligibleCountAbort = null;
+      }
+    }
+  }
 
   // ---- Worker RPC ----
   // Shared request/response envelope for our workers: post {reqId, ...payload},
@@ -90,6 +131,7 @@
       const r = await call('clear');
       engineCount = r.count;
       headerOnly = r.headerOnly;
+      eligibleTotal = r.eligibleTotal || 0;
       updatedAt = r.updatedAt;
       saveError = r.saveError || null;
     },
@@ -97,6 +139,7 @@
       const r = await call('flush', meta || {});
       engineCount = r.count;
       headerOnly = r.headerOnly;
+      eligibleTotal = r.eligibleTotal || 0;
       saveError = r.saveError || null;
     },
   };
@@ -116,6 +159,7 @@
       state: engineCount > 0 ? 'ready' : 'empty',
       count: engineCount,
       headerOnly,
+      eligibleTotal,
       updatedAt,
       saveError,
     };
@@ -133,6 +177,7 @@
           const r = await call('load');
           engineCount = r.count;
           headerOnly = r.headerOnly || 0;
+          eligibleTotal = r.eligibleTotal || 0;
           updatedAt = r.updatedAt;
           saveError = r.saveError || null;
         } catch (e) {
@@ -162,6 +207,7 @@
     building = true;
     buildProgress = 0;
     headerOnly = 0;
+    let builtCount = 0;
     await engineProxy.reset();
     try {
       const result = await OmniIndexer.fullBuild(engineProxy, extractor, (fraction, _count, ho, total) => {
@@ -170,10 +216,14 @@
         buildTotal = total || 0;
       });
       headerOnly = result.headerOnly;
+      builtCount = result.count;
     } finally {
       building = false;
     }
-    await engineProxy.flush({ headerOnly });
+    // Use the actually-indexed count as eligibleTotal: it reflects any date filter
+    // applied during the build, unlike buildTotal which comes from getFolderInfo.
+    eligibleTotal = builtCount || buildTotal;
+    await engineProxy.flush({ headerOnly, eligibleTotal });
   }
 
   // Open a single message by its numeric id, with a tab fallback.
@@ -232,9 +282,16 @@
         await ensureLoaded();
         await engineProxy.clear();
         return { type: 'status', status: status() };
+      case 'countEligible':
+        // Recount eligible messages in the background (metadata only, no body
+        // reads). Does not affect an ongoing build; returns the updated status.
+        void countEligibleInBackground();
+        return { type: 'status', status: status() };
       case 'reconcile':
         await ensureLoaded();
-        await OmniEvents.reconcile(controller);
+        const reconResult = await OmniEvents.reconcile(controller);
+        eligibleTotal = reconResult.eligibleTotal || 0;
+        await engineProxy.flush({ headerOnly, eligibleTotal });
         return { type: 'status', status: status() };
       case 'open':
         await openMessage(msg);
@@ -393,7 +450,6 @@
   safe('runtime.onStartup', () =>
     messenger.runtime.onStartup.addListener(() => void ensureLoaded()),
   );
-
   // Keepalive alarm handler + (re)apply when the setting changes.
   safe('alarms.onAlarm', () =>
     messenger.alarms.onAlarm.addListener((alarm) => {
@@ -420,6 +476,20 @@
       if (area === 'local' && changes.settings) {
         void applyKeepWarm();
         void applySearchUI();
+        // Re-count eligible messages whenever account/folder/spam settings change
+        // so the status line stays accurate without needing a rebuild.
+        const prev = (changes.settings.oldValue && changes.settings.oldValue) || {};
+        const next = (changes.settings.newValue && changes.settings.newValue) || {};
+        if (
+          JSON.stringify(prev.excludedAccounts) !== JSON.stringify(next.excludedAccounts) ||
+          JSON.stringify(prev.excludedFolderIds) !== JSON.stringify(next.excludedFolderIds) ||
+          JSON.stringify(prev.includedFolderIds) !== JSON.stringify(next.includedFolderIds) ||
+          prev.folderIndexMode !== next.folderIndexMode ||
+          prev.includeSpamTrash !== next.includeSpamTrash ||
+          prev.indexStartDate !== next.indexStartDate
+        ) {
+          void countEligibleInBackground();
+        }
       }
     }),
   );
@@ -427,5 +497,7 @@
   void applySearchUI();
 
   console.log('[OmniSearch] background loaded');
-  void ensureLoaded();
+  // Load the persisted index, then immediately count eligible messages in the
+  // background so eligibleTotal is populated before the options page is opened.
+  void ensureLoaded().then(() => void countEligibleInBackground());
 })();
