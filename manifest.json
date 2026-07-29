@@ -28,6 +28,7 @@
     ]
   },
   "action": {
+    "allowed_spaces": [],
     "default_title": "OmniSearch — search your mail",
     "default_popup": "ui/search.html",
     "default_icon": "icons/search.svg"
