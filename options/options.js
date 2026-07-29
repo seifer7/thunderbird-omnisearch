@@ -237,7 +237,7 @@
     };
     const saveExcluded = async () => {
       const s = await getSettings();
-      s.excludedFolderIds = [...excludedIds];
+      s.excludedFolderIds = [...excludedIds].sort();
       await messenger.storage.local.set({ [KEY]: s });
       showBanner('reconcile');
     };
