@@ -3,6 +3,8 @@
   --fg: #1c1b22;
   --muted: #6b6b75;
   --border: #d7d7dc;
+  --filter-panel-width: 236px;
+  --filter-date-min-width: 104px;
   /* Use the platform/theme accent colour, not a hardcoded blue. */
   --accent: AccentColor;
   --hover: #f0f6ff;
@@ -254,7 +256,7 @@ html.tab ul#results { max-height: none; }
 
 /* Filter panel */
 #filter-panel {
-  flex: 0 0 236px;
+  flex: 0 0 var(--filter-panel-width);
   min-width: 0;
   border-left: 1px solid var(--border);
   overflow-y: auto;
@@ -338,7 +340,7 @@ html.tab #filter-panel {
 }
 .fp-date-row input[type='date'] {
   flex: 1;
-  min-width: 104px;
+  min-width: var(--filter-date-min-width);
   font-size: 11px;
   padding: 3px 4px;
   color: var(--fg);
