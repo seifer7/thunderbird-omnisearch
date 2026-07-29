@@ -254,7 +254,7 @@ html.tab ul#results { max-height: none; }
 
 /* Filter panel */
 #filter-panel {
-  flex: 0 0 196px;
+  flex: 0 0 236px;
   min-width: 0;
   border-left: 1px solid var(--border);
   overflow-y: auto;
@@ -338,7 +338,7 @@ html.tab #filter-panel {
 }
 .fp-date-row input[type='date'] {
   flex: 1;
-  min-width: 0;
+  min-width: 104px;
   font-size: 11px;
   padding: 3px 4px;
   color: var(--fg);
@@ -405,4 +405,3 @@ html.tab #filter-panel {
   border-radius: 50%;
   border: 1.5px solid var(--bg);
 }
-
