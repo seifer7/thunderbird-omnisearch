@@ -23,7 +23,6 @@
   const fpAccountsEl = $('fp-accounts');
   const fpFoldersEl = $('fp-folders');
 
-  const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000; // milliseconds in one day
   const FILTER_DEBOUNCE_MS = 120;                    // debounce delay for text filter inputs
 
   // Launched as the centered standalone window (background opens
@@ -144,14 +143,24 @@
   // Splitting and passing to the Date constructor uses the local timezone.
   // Note: DST transitions on the selected day can shift midnight by ±1 hour;
   // this is an unavoidable edge case without a full date library.
-  function localDayStartMs(dateStr) {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    return new Date(y, m - 1, d).getTime();
+  function parseLocalDateParts(dateStr) {
+    const [y, m, d] = String(dateStr).split('-').map(Number);
+    if (![y, m, d].every(Number.isFinite)) return null;
+    return { y, m, d };
   }
 
-  // The last millisecond of the given day in local time.
+  function localDayStartMs(dateStr) {
+    const parts = parseLocalDateParts(dateStr);
+    if (!parts) return NaN;
+    return new Date(parts.y, parts.m - 1, parts.d).getTime();
+  }
+
+  // The last millisecond of the given local day. Uses next local midnight - 1ms
+  // so DST-short/long days are handled correctly.
   function localDayEndMs(dateStr) {
-    return localDayStartMs(dateStr) + MILLISECONDS_PER_DAY - 1;
+    const parts = parseLocalDateParts(dateStr);
+    if (!parts) return NaN;
+    return new Date(parts.y, parts.m - 1, parts.d + 1).getTime() - 1;
   }
 
   // Extract all folder names from a result (handles both the deduped `folders`
@@ -169,9 +178,9 @@
     const dateToMs   = filters.dateTo   ? localDayEndMs(filters.dateTo)     : null;
     return results.filter((r) => {
       // Date from (start of that day, local time)
-      if (dateFromMs !== null && (r.date || 0) < dateFromMs) return false;
+      if (Number.isFinite(dateFromMs) && (r.date || 0) < dateFromMs) return false;
       // Date to (end of that day, local time)
-      if (dateToMs !== null && (r.date || 0) > dateToMs) return false;
+      if (Number.isFinite(dateToMs) && (r.date || 0) > dateToMs) return false;
       // Subject substring
       if (filters.subject && !(r.subject || '').toLowerCase().includes(filters.subject.toLowerCase())) return false;
       // From substring
@@ -630,8 +639,8 @@
       }
       return;
     }
-    // Tab (or Down) from the search field jumps to the first result.
-    if ((e.key === 'Tab' && !e.shiftKey) || e.key === 'ArrowDown') {
+    // Down from the search field jumps to the first result.
+    if (e.key === 'ArrowDown') {
       const items = resultsEl.querySelectorAll('li.result');
       if (items.length) {
         e.preventDefault();
