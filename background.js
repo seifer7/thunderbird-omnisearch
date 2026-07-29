@@ -19,28 +19,45 @@
   // Last index-save error reported by the worker (null = saved OK). Surfaced in
   // status so the Settings page can warn that the index won't survive a restart.
   let saveError = null;
-  // Whether a background eligible-count pass is running (guards against overlaps).
+  // Whether a background eligible-count pass is running.
   let eligibleCountRunning = false;
+  // Abort handle + generation id for interrupting stale eligible-count runs.
+  let eligibleCountAbort = null;
+  let eligibleCountRunId = 0;
 
   // Walk the folder tree (metadata only — no body reads, no index mutations) and
   // update eligibleTotal. Safe to call at any time, including during a build.
   // When an index start date is configured, headers must be iterated to get an
   // accurate count (getFolderInfo returns a raw total that ignores the date cut-off).
   async function countEligibleInBackground() {
-    if (eligibleCountRunning) return;
+    eligibleCountRunId++;
+    const runId = eligibleCountRunId;
+    if (eligibleCountAbort) eligibleCountAbort.abort();
+    const abort = new AbortController();
+    eligibleCountAbort = abort;
     eligibleCountRunning = true;
+    // Recount restarted: clear the previous value immediately so the UI never
+    // shows a stale eligible total while the new settings are being recomputed.
+    eligibleTotal = 0;
     try {
       const folders = await OmniIndexer.flattenFolders();
+      if (abort.signal.aborted || runId !== eligibleCountRunId) return;
       const startDateMs = await OmniIndexer.getIndexStartDate();
+      if (abort.signal.aborted || runId !== eligibleCountRunId) return;
       if (startDateMs > 0) {
-        eligibleTotal = await OmniIndexer.countEligibleHeaders(folders, startDateMs);
+        eligibleTotal = await OmniIndexer.countEligibleHeaders(folders, startDateMs, abort.signal);
       } else {
-        eligibleTotal = await OmniIndexer.totalMessageCount(folders);
+        eligibleTotal = await OmniIndexer.totalMessageCount(folders, abort.signal);
       }
     } catch (e) {
-      console.error('[OmniSearch] eligible count failed:', e);
+      if (!(e && e.name === 'AbortError')) {
+        console.error('[OmniSearch] eligible count failed:', e);
+      }
     } finally {
-      eligibleCountRunning = false;
+      if (runId === eligibleCountRunId) {
+        eligibleCountRunning = false;
+        if (eligibleCountAbort === abort) eligibleCountAbort = null;
+      }
     }
   }
 
