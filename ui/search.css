@@ -3,7 +3,7 @@
   --fg: #1c1b22;
   --muted: #6b6b75;
   --border: #d7d7dc;
-  /* Sized so two native date fields show full dd/mm/yyyy + picker affordance. */
+  /* Sized so two native date fields show full locale date text + picker affordance. */
   --filter-panel-width: 236px;
   --filter-date-min-width: 104px;
   /* Use the platform/theme accent colour, not a hardcoded blue. */
