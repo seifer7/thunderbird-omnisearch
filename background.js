@@ -293,9 +293,9 @@
   async function searchUIMode() {
     try {
       const r = await messenger.storage.local.get('settings');
-      const ui = r.settings && r.settings.searchUI;
-      if (ui === 'popup') return 'popup';
-      if (ui === 'tab') return 'tab';
+      const uiMode = r.settings && r.settings.searchUI;
+      if (uiMode === 'popup') return 'popup';
+      if (uiMode === 'tab') return 'tab';
       // Spotlight is the default.
       return 'spotlight';
     } catch (e) {
