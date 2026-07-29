@@ -148,8 +148,9 @@
   // so filter bounds stay consistent and DST-safe.
   function parseLocalDateParts(dateStr) {
     if (!dateStr) return null;
-    const [y, m, d] = String(dateStr).split('-').map(Number);
+    const [y, m, d] = dateStr.split('-').map(Number);
     if (![y, m, d].every(Number.isFinite)) return null;
+    if (m < 1 || m > 12 || d < 1 || d > 31) return null;
     return { y, m, d };
   }
 
