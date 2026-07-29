@@ -25,8 +25,8 @@
   const fpAccountsEl = $('fp-accounts');
   const fpFoldersEl = $('fp-folders');
 
-  const MILLISECONDS_PER_DAY = 86400000; // milliseconds in one day
-  const FILTER_DEBOUNCE_MS = 120;        // debounce delay for text filter inputs
+  const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000; // milliseconds in one day
+  const FILTER_DEBOUNCE_MS = 120;                    // debounce delay for text filter inputs
 
   // Launched as the centered standalone window (background opens
   // ui/search.html#modal) rather than the toolbar-anchored popup. Enables
@@ -145,6 +145,8 @@
     if (!hasActiveFilters()) return results;
     // Pre-calculate date bounds once rather than inside the per-result loop.
     const dateFromMs = filters.dateFrom ? new Date(filters.dateFrom).getTime() : null;
+    // Subtract 1 ms so the "to" bound is inclusive of the full last day
+    // (getTime() returns midnight of that day; +MILLISECONDS_PER_DAY-1 = 23:59:59.999).
     const dateToMs   = filters.dateTo   ? new Date(filters.dateTo).getTime() + MILLISECONDS_PER_DAY - 1 : null;
     return results.filter((r) => {
       // Date from (start of that day, local time)
@@ -263,6 +265,15 @@
     renderResults(lastResults, lastQuery);
   }
 
+  // Helper: debounced input handler that updates a filter key and re-renders.
+  function makeFilterDebounce(getVal, key) {
+    let timerId;
+    return () => {
+      clearTimeout(timerId);
+      timerId = setTimeout(() => { filters[key] = getVal(); applyAndRender(); }, FILTER_DEBOUNCE_MS);
+    };
+  }
+
   fpDateFromEl.addEventListener('change', () => {
     filters.dateFrom = fpDateFromEl.value;
     applyAndRender();
@@ -272,19 +283,9 @@
     applyAndRender();
   });
 
-  let fpSubjectDebounceId, fpFromDebounceId, fpToDebounceId;
-  fpSubjectEl.addEventListener('input', () => {
-    clearTimeout(fpSubjectDebounceId);
-    fpSubjectDebounceId = setTimeout(() => { filters.subject = fpSubjectEl.value; applyAndRender(); }, FILTER_DEBOUNCE_MS);
-  });
-  fpFromEl.addEventListener('input', () => {
-    clearTimeout(fpFromDebounceId);
-    fpFromDebounceId = setTimeout(() => { filters.from = fpFromEl.value; applyAndRender(); }, FILTER_DEBOUNCE_MS);
-  });
-  fpToEl.addEventListener('input', () => {
-    clearTimeout(fpToDebounceId);
-    fpToDebounceId = setTimeout(() => { filters.to = fpToEl.value; applyAndRender(); }, FILTER_DEBOUNCE_MS);
-  });
+  fpSubjectEl.addEventListener('input', makeFilterDebounce(() => fpSubjectEl.value, 'subject'));
+  fpFromEl.addEventListener('input',    makeFilterDebounce(() => fpFromEl.value, 'from'));
+  fpToEl.addEventListener('input',      makeFilterDebounce(() => fpToEl.value, 'to'));
 
   fpResetBtn.addEventListener('click', () => {
     filters.dateFrom = '';
@@ -368,10 +369,10 @@
     if (!sortBy || sortBy === 'relevance') return results;
     const sorted = [...results];
     switch (sortBy) {
-      // Newest first: missing dates treated as oldest → MIN_SAFE_INTEGER → last.
-      case 'date-desc': sorted.sort((a, b) => (b.date || Number.MIN_SAFE_INTEGER) - (a.date || Number.MIN_SAFE_INTEGER)); break;
-      // Oldest first: missing dates treated as newest → MAX_SAFE_INTEGER → last.
-      case 'date-asc':  sorted.sort((a, b) => (a.date || Number.MAX_SAFE_INTEGER) - (b.date || Number.MAX_SAFE_INTEGER)); break;
+      // Newest first: missing dates get -Infinity → compare as smallest → sort last.
+      case 'date-desc': sorted.sort((a, b) => (b.date || -Infinity) - (a.date || -Infinity)); break;
+      // Oldest first: missing dates get +Infinity → compare as largest → sort last.
+      case 'date-asc':  sorted.sort((a, b) => (a.date || Infinity)  - (b.date || Infinity));  break;
       case 'subject':   sorted.sort((a, b) => (a.subject || '').localeCompare(b.subject || '')); break;
       case 'from':      sorted.sort((a, b) => (a.from || '').localeCompare(b.from || '')); break;
       case 'to':        sorted.sort((a, b) => (a.to || '').localeCompare(b.to || '')); break;
