@@ -99,7 +99,7 @@
     // Folder index mode: default 'all'
     const folderMode = settings.folderIndexMode || 'all';
     folderIndexAll.checked = folderMode === 'all';
-    folderIndexIncluded.checked = folderMode !== 'all';
+    folderIndexIncluded.checked = folderMode === 'included';
     updateFolderTreeVisibility();
   }
 
