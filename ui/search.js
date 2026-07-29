@@ -143,6 +143,9 @@
   // Splitting and passing to the Date constructor uses the local timezone.
   // Note: DST transitions on the selected day can shift midnight by ±1 hour;
   // this is an unavoidable edge case without a full date library.
+  // Parse a YYYY-MM-DD string into numeric local date parts.
+  // Returns { y, m, d } or null for invalid input. Shared by start/end helpers
+  // so filter bounds stay consistent and DST-safe.
   function parseLocalDateParts(dateStr) {
     const [y, m, d] = String(dateStr).split('-').map(Number);
     if (![y, m, d].every(Number.isFinite)) return null;
