@@ -140,14 +140,35 @@
     );
   }
 
+  // Parse a YYYY-MM-DD date string as LOCAL midnight (not UTC midnight).
+  // `new Date('YYYY-MM-DD')` would give UTC midnight, which is wrong for users
+  // not in UTC — their "Jan 15" would start at a time offset from midnight.
+  // Splitting and passing to the Date constructor uses the local timezone.
+  // Note: DST transitions on the selected day can shift midnight by ±1 hour;
+  // this is an unavoidable edge case without a full date library.
+  function localDayStartMs(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).getTime();
+  }
+
+  // The last millisecond of the given day in local time.
+  function localDayEndMs(dateStr) {
+    return localDayStartMs(dateStr) + MILLISECONDS_PER_DAY - 1;
+  }
+
+  // Extract all folder names from a result (handles both the deduped `folders`
+  // array and the older single `folderName` field). Centralised here so both
+  // applyFilters and buildDynamicFilters stay in sync if the shape changes.
+  function resultFolders(r) {
+    return (r.folders && r.folders.length ? r.folders : [r.folderName]).filter(Boolean);
+  }
+
   // Apply all active filters to an array of results. Does not mutate the input.
   function applyFilters(results) {
     if (!hasActiveFilters()) return results;
     // Pre-calculate date bounds once rather than inside the per-result loop.
-    const dateFromMs = filters.dateFrom ? new Date(filters.dateFrom).getTime() : null;
-    // Subtract 1 ms so the "to" bound is inclusive of the full last day
-    // (getTime() returns midnight of that day; +MILLISECONDS_PER_DAY-1 = 23:59:59.999).
-    const dateToMs   = filters.dateTo   ? new Date(filters.dateTo).getTime() + MILLISECONDS_PER_DAY - 1 : null;
+    const dateFromMs = filters.dateFrom ? localDayStartMs(filters.dateFrom) : null;
+    const dateToMs   = filters.dateTo   ? localDayEndMs(filters.dateTo)     : null;
     return results.filter((r) => {
       // Date from (start of that day, local time)
       if (dateFromMs !== null && (r.date || 0) < dateFromMs) return false;
@@ -162,10 +183,7 @@
       // Account multiselect (empty set = all)
       if (filters.accounts.size > 0 && !filters.accounts.has(r.accountId || '')) return false;
       // Folder multiselect (empty set = all)
-      if (filters.folders.size > 0) {
-        const rFolders = (r.folders && r.folders.length ? r.folders : [r.folderName]).filter(Boolean);
-        if (!rFolders.some((f) => filters.folders.has(f))) return false;
-      }
+      if (filters.folders.size > 0 && !resultFolders(r).some((f) => filters.folders.has(f))) return false;
       return true;
     });
   }
@@ -205,8 +223,9 @@
   // so they don't silently swallow all results.
   function buildCheckboxes(container, values, selectedSet, displayFn, onChange) {
     // Remove selections that are no longer in the current result set.
+    const valuesSet = new Set(values);
     for (const sel of [...selectedSet]) {
-      if (!values.includes(sel)) selectedSet.delete(sel);
+      if (!valuesSet.has(sel)) selectedSet.delete(sel);
     }
     container.replaceChildren();
     if (values.length === 0) {
@@ -241,8 +260,7 @@
     const folderNames = new Set();
     for (const r of results) {
       if (r.accountId) accountIds.add(r.accountId);
-      const rFolders = (r.folders && r.folders.length ? r.folders : [r.folderName]).filter(Boolean);
-      for (const f of rFolders) folderNames.add(f);
+      for (const f of resultFolders(r)) folderNames.add(f);
     }
     buildCheckboxes(
       fpAccountsEl,
