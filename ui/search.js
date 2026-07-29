@@ -708,6 +708,7 @@
 
   // Show the (non-blocking) loading hint until the first status reply. The field
   // stays enabled and focused the whole time so the user can type immediately.
+  buildDynamicFilters([]); // show empty-state hints before the first search
   showLoadingHint(true);
   queryInput.focus();
   // Safety net: only force-clear the hint if the background never answers at
