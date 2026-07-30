@@ -244,15 +244,44 @@
     }
   }
 
-  // Open a result. The stored numeric id can be stale after a restart, so if it
-  // fails we re-resolve the message by its stable RFC Message-ID and open that.
+  // Open a result. The stored numeric id can become stale (message moved) or be
+  // reused by Thunderbird for a completely different message after the original
+  // was deleted. Either case produces wrong-message opens if we trust the numeric
+  // id blindly. When a stable RFC Message-ID is available, we verify the stored
+  // numeric id still refers to the correct message before using it; if the check
+  // fails we fall back to a fresh headerMessageId query.
   async function openMessage(msg) {
-    if (await tryOpen(Number(msg.id))) return;
+    const numId = Number(msg.id);
+    if (Number.isFinite(numId)) {
+      if (msg.headerMessageId) {
+        // Verify the stored numeric id still refers to this specific message.
+        // messenger.messages.get() returns null for missing/invalid ids rather
+        // than throwing, but we guard with try/catch for robustness.
+        try {
+          const header = await messenger.messages.get(numId);
+          if (header && header.headerMessageId === msg.headerMessageId) {
+            if (await tryOpen(numId)) return;
+          }
+          // headerMessageId mismatch: id was reused for a different message, or
+          // the message was moved and got a new id — fall through to re-resolve.
+        } catch (e) {
+          // Stale id; fall through to the headerMessageId path.
+        }
+      } else {
+        // No headerMessageId to verify against; use the numeric id directly.
+        if (await tryOpen(numId)) return;
+      }
+    }
     if (msg.headerMessageId) {
       try {
         const q = await messenger.messages.query({ headerMessageId: msg.headerMessageId });
         const list = (q && q.messages) || [];
-        if (list.length && (await tryOpen(list[0].id))) return;
+        // If multiple copies exist (e.g. different accounts or Gmail labels),
+        // prefer the one whose accountId matches what was indexed.
+        const match = msg.accountId
+          ? list.find((m) => m.folder && m.folder.accountId === msg.accountId) || list[0]
+          : list[0];
+        if (match && (await tryOpen(match.id))) return;
       } catch (e) {
         console.error('[OmniSearch] could not re-resolve message:', e);
       }

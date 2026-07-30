@@ -502,7 +502,7 @@
 
       li.append(row, meta, preview);
       li.addEventListener('click', async () => {
-        await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId });
+        await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId, accountId: r.accountId || '' });
         // In tab mode the tab should stay open. In popup/spotlight mode, close
         // unless the user opted to keep it open in settings.
         if (!isTab) {
