@@ -197,7 +197,7 @@
 
       li.append(row, meta, preview);
       li.addEventListener('click', async () => {
-        await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId });
+        await send({ type: 'open', id: r.id, headerMessageId: r.headerMessageId, accountId: r.accountId || '' });
         // Close the popup once the message opens, unless the user opted to keep
         // it open in settings.
         const settings = await getSettings();
