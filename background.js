@@ -379,8 +379,11 @@
   async function searchUIMode() {
     try {
       const r = await messenger.storage.local.get('settings');
-      // Spotlight is the default: only an explicit 'popup' choice opts out.
-      return r.settings && r.settings.searchUI === 'popup' ? 'popup' : 'spotlight';
+      const uiMode = r.settings && r.settings.searchUI;
+      if (uiMode === 'popup') return 'popup';
+      if (uiMode === 'tab') return 'tab';
+      // Spotlight is the default.
+      return 'spotlight';
     } catch (e) {
       return 'spotlight';
     }
@@ -388,9 +391,20 @@
   async function applySearchUI() {
     try {
       const mode = await searchUIMode();
-      await messenger.action.setPopup({ popup: mode === 'spotlight' ? '' : 'ui/search.html' });
+      // For spotlight and tab modes, clear the action popup so onClicked fires.
+      await messenger.action.setPopup({ popup: mode === 'popup' ? 'ui/search.html' : '' });
     } catch (e) {
       console.error('[OmniSearch] search UI mode setup failed:', e);
+    }
+  }
+
+  // Open a new search tab in the main Thunderbird window. Each click opens a
+  // fresh tab so multiple independent search sessions can run side-by-side.
+  async function openTab() {
+    try {
+      await messenger.tabs.create({ url: 'ui/search.html#tab' });
+    } catch (e) {
+      console.error('[OmniSearch] could not open search tab:', e);
     }
   }
 
@@ -471,10 +485,14 @@
       if (alarm.name === KEEPALIVE_ALARM) void ensureLoaded();
     }),
   );
-  // In Spotlight mode the popup is cleared, so clicking the button (and the Alt+S
-  // _execute_action command, when no popup is set) fires onClicked → open window.
+  // In Spotlight and Tab modes the popup is cleared, so clicking the button (and
+  // the Alt+S _execute_action command, when no popup is set) fires onClicked.
   safe('action.onClicked', () =>
-    messenger.action.onClicked.addListener(() => void openSpotlight()),
+    messenger.action.onClicked.addListener(async () => {
+      const mode = await searchUIMode();
+      if (mode === 'tab') void openTab();
+      else void openSpotlight();
+    }),
   );
   safe('windows.onRemoved', () =>
     messenger.windows.onRemoved.addListener((id) => {

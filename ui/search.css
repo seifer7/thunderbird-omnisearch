@@ -3,6 +3,10 @@
   --fg: #1c1b22;
   --muted: #6b6b75;
   --border: #d7d7dc;
+  /* Panel width sized to fit two date fields side-by-side without truncation.
+     --filter-date-min-width is the minimum width of each individual date field. */
+  --filter-panel-width: 296px;
+  --filter-date-min-width: 134px;
   /* Use the platform/theme accent colour, not a hardcoded blue. */
   --accent: AccentColor;
   --hover: #f0f6ff;
@@ -79,7 +83,7 @@ header {
 }
 .clear:hover { background: var(--hover); color: var(--fg); }
 
-.actions { display: flex; gap: 6px; }
+.actions { display: flex; gap: 6px; align-items: center; }
 button {
   padding: 8px 12px;
   font-size: 13px;
@@ -201,3 +205,189 @@ li.result:focus {
 .folder { color: var(--accent); }
 
 .empty { padding: 24px 14px; color: var(--muted); text-align: center; }
+
+/* Sort label and dropdown in the actions bar */
+.sort-label {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+#sort {
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+#sort:focus { outline: 2px solid var(--accent); }
+
+/* Relevance score and date grouped in the result row's right side */
+.date-score { display: flex; align-items: center; gap: 6px; flex: none; }
+.score {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+/* Tab mode: full-width layout, and let results grow naturally without a fixed
+   height cap — the tab itself scrolls. */
+html.tab body { width: 100%; }
+html.tab ul#results { max-height: none; }
+
+/* ---- Filter panel ---- */
+
+/* Content layout: row when the filter panel is visible on either side */
+#content-layout {
+  display: flex;
+  align-items: flex-start;
+}
+/* Panel on right (default): results first, panel second */
+#content-layout.filters-right #results-col  { order: 1; }
+#content-layout.filters-right #filter-panel { order: 2; }
+/* Panel on left: panel first, results second */
+#content-layout.filters-left #filter-panel { order: 1; }
+#content-layout.filters-left #results-col  { order: 2; }
+
+/* Results column fills remaining width */
+#results-col { flex: 1; min-width: 0; }
+
+/* Filter panel */
+#filter-panel {
+  flex: 0 0 var(--filter-panel-width);
+  min-width: 0;
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+  /* Match the results list cap so the panel doesn't exceed the popup height */
+  max-height: 460px;
+  padding: 0 0 8px;
+}
+#content-layout.filters-left #filter-panel {
+  border-left: none;
+  border-right: 1px solid var(--border);
+}
+
+/* In tab mode the panel is sticky and grows to fill the viewport height */
+html.tab #filter-panel {
+  max-height: calc(100vh - 100px);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+}
+
+/* Panel header (title + reset) */
+.fp-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.fp-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex: 1;
+}
+
+/* Individual filter sections */
+.fp-section {
+  padding: 8px 10px 0;
+}
+.fp-section:last-child { padding-bottom: 4px; }
+
+.fp-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+/* Date range row */
+.fp-date-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fp-date-row input[type='date'] {
+  flex: 1;
+  min-width: var(--filter-date-min-width);
+  font-size: 11px;
+  padding: 3px 4px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.fp-date-row input[type='date']:focus { outline: 2px solid var(--accent); }
+.fp-date-sep { font-size: 11px; color: var(--muted); flex: none; }
+
+/* Text filter inputs */
+.fp-text {
+  width: 100%;
+  font-size: 12px;
+  padding: 4px 6px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+}
+.fp-text:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+
+/* Multiselect checkbox lists (Accounts / Folders) */
+.fp-multiselect {
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fp-check-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 2px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.fp-check-label:hover { background: var(--hover); }
+.fp-check-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fp-empty-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Filter-toggle button in the header: position:relative for the active dot */
+#filter-toggle { position: relative; }
+/* Accent dot that appears when any filter is active */
+#filter-toggle.filter-active::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  background: var(--accent);
+  border-radius: 50%;
+  border: 1.5px solid var(--bg);
+}
