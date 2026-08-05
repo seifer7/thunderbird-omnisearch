@@ -12,3 +12,7 @@ node_modules/
 # Local AI-assistant notes (developer-only; not for publication)
 CLAUDE.md
 .claude/
+
+# Working copy of the addons.thunderbird.net submission form content. Kept out
+# of the repo because the published listing on ATN is the source of truth.
+ATN-LISTING.md
