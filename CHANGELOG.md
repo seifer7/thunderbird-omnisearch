@@ -8,6 +8,37 @@ Changelog tracking begins at the 0.4.x series; for earlier history see the git l
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-06
+
+### Changed
+
+- **Recent emails now rank higher.** Search ranking previously ignored a
+  message's date entirely, so equally-good matches came back in an order derived
+  from the folder-walk of the last index build — which meant new mail often sat
+  below old mail for no visible reason. Results are now multiplied by a recency
+  factor that decays with age (2.5× for today's mail, 2.1× at six months, 1.75×
+  after a year, and effectively nothing past several years), and exact ties are
+  broken by date instead of index order. Matching in the subject or sender still
+  counts for more than being recent: a years-old email with your search term in
+  its **subject** still outranks one from today that only mentions it in the
+  body.
+  **No rebuild is required** — this changes ranking only, not the index.
+
+### Added
+
+- `test/engine.test.js` — unit tests for search-result shaping: the recency
+  curve and its edges (future-dated mail is clamped so it cannot be pushed to
+  the top; a missing date stays neutral), the guarantee that recency does not
+  override the subject/sender weighting, and the existing de-duplication
+  behaviour. Run with `npm test`; no dependencies to install.
+
+### Fixed
+
+- `lib/engine.js` no longer contains a literal NUL byte (it was the internal
+  separator in the de-duplication key, now written as an escape). Git classified
+  the file as binary because of it, which suppressed diffs for the project's
+  most-edited source file. Runtime behaviour is unchanged.
+
 ## [0.5.2] - 2026-08-05
 
 ### Fixed
