@@ -8,6 +8,46 @@ Changelog tracking begins at the 0.4.x series; for earlier history see the git l
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-07
+
+### Added
+
+- **Search filters for date and sender.** Narrow any search with `date:`,
+  `after:`, `before:`, `from:` and `to:` — for example
+  `invoice from:alice@corp.com date:2024-06..2024-07`. Filters work on their own
+  too, with no search words at all.
+  - A date always means **the whole period you named**: `date:2024-06` is all of
+    June, `after:2024-06` starts at 1 June, and `before:2024-06` runs to the end
+    of 30 June. So `after:2024-06 before:2024-07` is June and July inclusive —
+    unlike Gmail, you never have to name a month you don't want.
+  - `from:`/`to:` match the sender or recipient **only**. Previously a plain
+    search for a domain could match on the recipient instead, and a bare address
+    like `<bob@example.net>` was hard to find by name because of how addresses
+    are split into words; both are fixed by these filters.
+  - Dates must be written **year first** (`2024-06-07`) or with the month spelled
+    out in whatever order comes naturally — `date:7 july 2024`,
+    `date:july 7 2024`, `date:July 7, 2024` and `date:july 2024` all work
+    without quotes, in English, German, French and Spanish. An ambiguous form
+    like `7/6/2024` is refused with an explanation rather than guessed at: it
+    means 7 June in Europe and 6 July in the US, and search results give no hint
+    that the wrong month was chosen.
+  - Inside an explicit date range, results are ordered by relevance rather than
+    by the recency preference added in 0.6.0 — you already said which period you
+    wanted.
+  - A filter is **never dropped in silence.** If part of what you typed can't be
+    understood as a date, it is reported in the results area rather than being
+    ignored, because a search that quietly ran without your filter looks exactly
+    like one that worked.
+  - **No rebuild is required.**
+
+### Added (developer)
+
+- `lib/query.js` — the query-operator parser, a pure module with no Thunderbird
+  or MiniSearch dependencies, loaded inside the engine worker.
+- `test/query.test.js` — 49 unit tests for it, including the ambiguous-date
+  rules and a pinned non-UTC timezone (a UTC test runner cannot see the
+  local-vs-UTC parsing bug these guard against). Total suite: 84 tests.
+
 ## [0.6.0] - 2026-08-06
 
 ### Changed
