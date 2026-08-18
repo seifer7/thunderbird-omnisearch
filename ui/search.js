@@ -9,6 +9,7 @@
   const statusEl = $('status');
   const progressEl = $('progress');
   const emptyEl = $('empty');
+  const chipsEl = $('chips');
   const loadingEl = $('loading');
 
   // Launched as the centered standalone window (background opens
@@ -130,11 +131,113 @@
         rebuildLink.addEventListener('click', () => void startRebuild());
         statusEl.append(rebuildLink, ' to index your mail.');
       } else {
-        const parts = [`${s.count.toLocaleString()} messages indexed`];
-        if (s.updatedAt) parts.push(`updated ${new Date(s.updatedAt).toLocaleTimeString()}`);
-        statusEl.textContent = parts.join(' · ');
+        // Ready. This row used to read "78,900 messages indexed · updated
+        // 15:00" — information you read once and then never again, occupying the
+        // most visible space in the window. The index count and freshness still
+        // live on the Settings page (options.js), which is also where a save
+        // error is reported, so nothing diagnostic is lost here.
+        //
+        // Filter templates go here instead. Reusing this existing row is what
+        // makes permanent discoverability affordable: the row is already part of
+        // the window's opening height, so nothing resizes on open — which is why
+        // the hint had to hide in the empty state before.
+        // Build once, not on every poll: refreshStatus() runs twice a second,
+        // and re-creating these buttons that often would rip focus away from a
+        // keyboard user who had tabbed onto one. Other states set textContent,
+        // which clears the row, so this rebuilds when returning from them.
+        if (!statusEl.querySelector('.templates')) {
+          statusEl.replaceChildren(renderFilterTemplates());
+        }
+        syncTemplateVisibility();
       }
     }
+  }
+
+  // Filter templates shown in the status row while the field is empty. Each is a
+  // button: clicking inserts the bare operator ("date:") and focuses the field
+  // so the user types the value. The example beside it is illustration, not
+  // inserted text — it is rendered muted precisely so it reads as "your value
+  // goes here" rather than as content.
+  //
+  // Examples deliberately show BOTH accepted date forms — year-first and a
+  // spelled month — because value format is where this feature has misled users
+  // repeatedly: knowing `date:` exists is useless if you then write 7/6/2024.
+  // The range form (date:A..B) is taught by the empty-state hint instead; it is
+  // too long to keep this row on one line, and the row must not wrap (see the
+  // .templates comment in search.css).
+  const FILTER_TEMPLATES = [
+    { op: 'from', example: 'alice' },
+    { op: 'to', example: 'bob' },
+    { op: 'date', example: '2024-06' },
+    { op: 'after', example: '2024-06' },
+    { op: 'before', example: '7 july 2024' },
+  ];
+
+  // Append "op:" to the query and put the caret after it, ready for a value.
+  function insertOperator(op) {
+    const current = queryInput.value.replace(/\s+$/, '');
+    queryInput.value = (current ? current + ' ' : '') + op + ':';
+    syncQueryUi();
+    queryInput.focus();
+    const end = queryInput.value.length;
+    queryInput.setSelectionRange(end, end);
+    // A bare "date:" resolves to no filter and no error (the parser treats a
+    // trailing incomplete value as still-being-typed), so this re-runs safely.
+    void runSearch();
+  }
+
+  function renderFilterTemplates() {
+    const row = document.createElement('div');
+    row.className = 'templates';
+    for (const { op, example } of FILTER_TEMPLATES) {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'template-chip';
+      chip.title = `Add a ${op}: filter — for example ${op}:${example}`;
+      chip.setAttribute('aria-label', `Add ${op} filter, for example ${op} ${example}`);
+
+      const plus = document.createElement('span');
+      plus.className = 't-plus';
+      plus.textContent = '+';
+      plus.setAttribute('aria-hidden', 'true');
+
+      const name = document.createElement('span');
+      name.className = 't-op';
+      name.textContent = `${op}:`;
+
+      const eg = document.createElement('span');
+      eg.className = 't-example';
+      eg.textContent = example;
+
+      chip.append(plus, name, eg);
+      chip.addEventListener('click', () => insertOperator(op));
+      row.appendChild(chip);
+    }
+    return row;
+  }
+
+  // Templates are a cold-start affordance, not a permanent toolbar. They hide as
+  // soon as the field has text, which also keeps them from sitting directly
+  // above the ACTIVE filter chips — those look similar but mean the opposite
+  // (click to remove, not to add), and showing both at once invites misclicks.
+  function syncTemplateVisibility() {
+    statusEl.classList.toggle('has-query', queryInput.value.trim().length > 0);
+  }
+
+  // One-line pointer at the filter syntax, built from DOM nodes so the examples
+  // can be marked up as code without innerHTML.
+  function filterHint() {
+    const hint = document.createElement('span');
+    hint.className = 'hint';
+    hint.append('Tip: narrow a search with ');
+    for (const [i, example] of ['from:alice', 'date:2024-06', 'date:2024-06..2024-07'].entries()) {
+      if (i) hint.append(i === 2 ? ' or ' : ', ');
+      const code = document.createElement('code');
+      code.textContent = example;
+      hint.appendChild(code);
+    }
+    hint.append('.');
+    return hint;
   }
 
   // Describe the active date/sender filters in the user's own terms, so a
@@ -152,9 +255,86 @@
     return parts.join(', ');
   }
 
-  function renderResults(results, query, errors, filters) {
+  // Label a chip with the RESOLVED meaning of its filter rather than the text
+  // that was typed — "1 Jun 2024 – 31 Jul 2024", not "date:2024-06..2024-07".
+  // A range that came out a month wider than intended is then visible before it
+  // quietly returns the wrong mail.
+  function chipLabel(entry) {
+    if (entry.op === 'from' || entry.op === 'to') return `${entry.op}: ${entry.value}`;
+    const d = (ms) => new Date(ms).toLocaleDateString();
+    if (entry.after != null && entry.before != null) {
+      // A single day resolves to the same date at both ends; say it once.
+      const a = d(entry.after);
+      const b = d(entry.before);
+      return a === b ? a : `${a} – ${b}`;
+    }
+    if (entry.after != null) return `on or after ${d(entry.after)}`;
+    return `on or before ${d(entry.before)}`;
+  }
+
+  // A geometrically centred ✕, matching the inline-SVG approach already used for
+  // the settings button. currentColor so it follows the theme and hover state.
+  function closeIcon() {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 12 12');
+    svg.setAttribute('width', '10');
+    svg.setAttribute('height', '10');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', 'M3.5 3.5 L8.5 8.5 M8.5 3.5 L3.5 8.5');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(path);
+    return svg;
+  }
+
+  // Rebuild the query from the chips the user kept, plus the leftover free
+  // text. Reconstructing beats cutting the removed operator out of the raw
+  // string, which would be ambiguous whenever the same text appears twice.
+  function removeFilter(applied, index, freeText) {
+    const kept = applied.filter((_, i) => i !== index).map((a) => a.source);
+    queryInput.value = [...kept, freeText].join(' ').trim();
+    syncQueryUi();
+    queryInput.focus();
+    void runSearch();
+  }
+
+  function renderChips(applied, freeText) {
+    chipsEl.replaceChildren();
+    for (const [index, entry] of (applied || []).entries()) {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+
+      const label = document.createElement('span');
+      label.className = 'chip-label';
+      // textContent, never innerHTML: from:/to: values come from the query but
+      // are echoed back alongside mail-derived content elsewhere in this list.
+      label.textContent = chipLabel(entry);
+      label.title = entry.source; // what was typed, on hover
+
+      const remove = document.createElement('button');
+      remove.className = 'chip-remove';
+      remove.type = 'button';
+      // Drawn, not typed. The "×" character sits on the font's math axis, above
+      // the centre of its em box, so it renders high inside the round hover
+      // background no matter how the box itself is centred — flex centring the
+      // line box does not move the glyph within it. An SVG has no such metrics.
+      remove.appendChild(closeIcon());
+      remove.title = `Remove ${entry.source}`;
+      remove.setAttribute('aria-label', `Remove filter ${chipLabel(entry)}`);
+      remove.addEventListener('click', () => removeFilter(applied, index, freeText));
+
+      chip.append(label, remove);
+      chipsEl.appendChild(chip);
+    }
+  }
+
+  function renderResults(results, query, errors, filters, applied, freeText) {
     resultsEl.replaceChildren();
-    emptyEl.textContent = '';
+    emptyEl.replaceChildren();
+    renderChips(applied, freeText || '');
 
     // A rejected date operator MUST be shown. Dropping it silently would run an
     // unfiltered search that looks like it worked — exactly the failure the
@@ -168,6 +348,11 @@
     if (!query.trim() && !scope) return;
     if (results.length === 0) {
       emptyEl.textContent = scope ? `No matches ${scope}.` : 'No matches.';
+      // The filters are invisible unless something points at them, and a search
+      // that found nothing is when someone is most receptive to learning they
+      // exist. Deliberately NOT shown at rest: an always-present hint would add
+      // height to the centered window's opening size and make it resize on open.
+      emptyEl.appendChild(filterHint());
       return;
     }
     for (const r of results) {
@@ -257,7 +442,9 @@
       return;
     }
     if (seq !== searchSeq) return; // a newer keystroke superseded this one
-    if (reply && reply.type === 'results') renderResults(reply.results, query, reply.errors, reply.filters);
+    if (reply && reply.type === 'results') {
+      renderResults(reply.results, query, reply.errors, reply.filters, reply.applied, reply.text);
+    }
     else emptyEl.textContent = 'No response from the index.';
   }
 
@@ -308,22 +495,30 @@
     }
   }
 
-  function syncClearButton() {
+  // Called by every path that changes the query text, so the chrome that depends
+  // on it stays in step: the clear button, and the filter templates (which hide
+  // once there is text). Folded into one function rather than remembered
+  // separately at each call site.
+  function syncQueryUi() {
     clearBtn.hidden = queryInput.value.length === 0;
+    syncTemplateVisibility();
   }
 
   let debounce;
   queryInput.addEventListener('input', () => {
-    syncClearButton();
+    syncQueryUi();
     if (debounce) clearTimeout(debounce);
     debounce = setTimeout(() => void runSearch(), 120);
   });
 
   clearBtn.addEventListener('click', () => {
     queryInput.value = '';
-    syncClearButton();
+    syncQueryUi();
     resultsEl.replaceChildren();
-    emptyEl.textContent = '';
+    emptyEl.replaceChildren();
+    // Chips must go with the query that produced them — a chip left behind
+    // would claim a filter that is no longer being applied.
+    chipsEl.replaceChildren();
     queryInput.focus();
   });
 

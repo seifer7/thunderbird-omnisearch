@@ -6,6 +6,8 @@
   /* Use the platform/theme accent colour, not a hardcoded blue. */
   --accent: AccentColor;
   --hover: #f0f6ff;
+  --chip-bg: #eef1f5;
+  --chip-hover: #dde2e9;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -14,6 +16,8 @@
     --muted: #a8a8b3;
     --border: #38383d;
     --hover: #2a2a33;
+    --chip-bg: #2b2b34;
+    --chip-hover: #3a3a45;
   }
 }
 
@@ -40,7 +44,9 @@ header {
   align-items: center;
   padding: 12px;
   background: var(--bg);
-  border-bottom: 1px solid var(--border);
+  /* No bottom border: the field already reads as its own control, and a rule
+     under it just added a line for the filter chips to collide with. The header
+     stays opaque, so results still pass cleanly beneath it when scrolling. */
 }
 
 .search-box { position: relative; flex: 1; display: flex; }
@@ -144,8 +150,133 @@ button:hover { background: var(--hover); }
    inflates the centered window's collapsed (field-only) height, which forced an
    open-time resize and clipped the field. They reclaim padding once populated. */
 .status:empty,
-.empty:empty {
+.empty:empty,
+.chips:empty {
   padding: 0;
+}
+
+/* Filter templates, rendered inside the status row. Kept to a SINGLE line
+   (nowrap + hidden overflow): this row is part of the centered window's opening
+   height, so a wrapped second line would grow the window on open — the flicker
+   MODAL_MIN_H exists to prevent. Worst case on a narrow window the last chip is
+   clipped, which is harmless; a taller row is not. */
+.templates {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  gap: 6px;
+  align-items: center;
+}
+/* Hidden once the field has text — see syncTemplateVisibility(). The padding
+   goes too, so the row collapses completely rather than leaving a blank band. */
+.status.has-query { padding: 0; }
+.status.has-query .templates { display: none; }
+
+/* Deliberately NOT styled like an active filter chip. Those are solid with a
+   trailing x and mean "remove"; these are dashed with a leading + and mean
+   "add". Same shape, opposite action, so they must not look alike. */
+.template-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.template-chip:hover {
+  background: var(--chip-bg);
+  border-style: solid;
+  color: var(--fg);
+}
+.template-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.template-chip .t-plus { font-weight: 600; }
+/* The operator is what gets inserted, so it reads as literal text… */
+.template-chip .t-op {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--fg);
+}
+/* …while the example is only illustration and must not look insertable. */
+.template-chip .t-example {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0.7;
+  font-style: italic;
+}
+
+/* Active filter chips. Each shows the RESOLVED meaning of a filter ("1 Jun –
+   31 Jul 2024"), not the text the user typed, so an off-by-a-month range is
+   visible before it silently returns the wrong mail. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  /* Top padding matters: with the header's rule gone the chips would otherwise
+     sit flush against the search field. */
+  padding: 4px 14px 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--chip-bg);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 100%;
+}
+.chip .chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Comfortably clickable without inflating the row's height. */
+.chip .chip-remove {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  /* The x is an inline SVG (see closeIcon()), so centring the box centres the
+     mark itself. A text "×" cannot be centred this way: the glyph sits on the
+     font's math axis, above the middle of its em box, so it reads high inside
+     the round hover background however the box is aligned. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.chip .chip-remove svg { display: block; }
+.chip .chip-remove:hover {
+  background: var(--chip-hover);
+  color: var(--fg);
+}
+.chip .chip-remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+/* The filter hint in the empty state — quieter than the message above it. */
+.hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--chip-bg);
+  border-radius: 3px;
+  padding: 1px 4px;
 }
 progress { width: calc(100% - 28px); margin: 0 14px 8px; height: 6px; }
 
@@ -194,6 +325,15 @@ li.result:focus {
   border-radius: 6px;
   padding: 0 5px;
   margin-left: 6px;
+  /* Inline elements sit on the shared baseline, which leaves this badge low
+     against the larger subject text next to it — its own text lines up, but the
+     pill around it hangs below the subject's optical centre. inline-block gives
+     it a real box, and vertical-align centres that box on the parent's midline. */
+  display: inline-block;
+  vertical-align: middle;
+  /* Nudges the pill's own text off the bottom of its border without growing the
+     line box beyond the subject's. */
+  line-height: 1.45;
 }
 .date { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .meta { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
