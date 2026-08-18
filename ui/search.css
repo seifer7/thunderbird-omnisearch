@@ -201,3 +201,8 @@ li.result:focus {
 .folder { color: var(--accent); }
 
 .empty { padding: 24px 14px; color: var(--muted); text-align: center; }
+
+/* Tab mode: full-width layout, and let results grow naturally without a fixed
+   height cap — the tab itself scrolls. */
+html.tab body { width: 100%; }
+html.tab ul#results { max-height: none; }
