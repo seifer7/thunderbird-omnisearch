@@ -10,6 +10,9 @@
   const progressEl = $('progress');
   const emptyEl = $('empty');
   const loadingEl = $('loading');
+  const sortEl = $('sort');
+  const sortControls = $('sort-controls');
+  const sortBtn = $('sort-btn');
 
   // Launched as the centered standalone window (background opens
   // ui/search.html#modal) rather than the toolbar-anchored popup. Enables
@@ -152,6 +155,33 @@
     return parts.join(', ');
   }
 
+  // Sort results client-side according to the chosen sort key. The results
+  // arrive from MiniSearch already sorted by descending relevance score, which
+  // is the 'relevance' option, so no work is needed for that case.
+  function sortResults(results, sortBy) {
+    if (!sortBy || sortBy === 'relevance') return results;
+    const sorted = [...results];
+    switch (sortBy) {
+      case 'date-desc': sorted.sort((a, b) => (b.date || 0) - (a.date || 0)); break;
+      case 'date-asc':  sorted.sort((a, b) => (a.date || 0) - (b.date || 0)); break;
+      case 'subject':   sorted.sort((a, b) => (a.subject || '').localeCompare(b.subject || '')); break;
+      case 'from':      sorted.sort((a, b) => (a.from || '').localeCompare(b.from || '')); break;
+      case 'to':        sorted.sort((a, b) => (a.to || '').localeCompare(b.to || '')); break;
+      case 'folder':    sorted.sort((a, b) => (a.folderName || '').localeCompare(b.folderName || '')); break;
+    }
+    return sorted;
+  }
+
+  // Attach a normalised relevance percentage to each result. The top-scoring hit
+  // is 100%; all others are expressed relative to it. MiniSearch scores are
+  // unbounded positive numbers, so normalising to the max-in-set is the most
+  // meaningful way to turn them into a human-readable percentage.
+  function withRelevance(results) {
+    const maxScore = results.reduce((m, r) => Math.max(m, r.score || 0), 0);
+    if (maxScore <= 0) return results;
+    return results.map((r) => ({ ...r, _pct: Math.round(((r.score || 0) / maxScore) * 100) }));
+  }
+
   function renderResults(results, query, errors, filters) {
     resultsEl.replaceChildren();
     emptyEl.textContent = '';
@@ -170,7 +200,11 @@
       emptyEl.textContent = scope ? `No matches ${scope}.` : 'No matches.';
       return;
     }
-    for (const r of results) {
+
+    const normed = withRelevance(results);
+    const sorted = sortResults(normed, sortEl ? sortEl.value : 'relevance');
+
+    for (const r of sorted) {
       const li = document.createElement('li');
       li.className = 'result';
       li.tabIndex = 0; // focusable for keyboard navigation
@@ -196,13 +230,24 @@
         subject.appendChild(badge); // .badge margin-left provides the gap
       }
 
+      // Relevance score badge (percentage of the top-scoring result).
+      const scoreWrap = document.createElement('span');
+      scoreWrap.className = 'date-score';
+      if (r._pct != null) {
+        const scoreEl = document.createElement('span');
+        scoreEl.className = 'score';
+        scoreEl.title = 'Relevance score';
+        scoreEl.textContent = r._pct + '%';
+        scoreWrap.appendChild(scoreEl);
+      }
       const date = document.createElement('span');
       date.className = 'date';
       date.textContent = fmtDate(r.date);
+      scoreWrap.appendChild(date);
 
       const row = document.createElement('div');
       row.className = 'row';
-      row.append(subject, date);
+      row.append(subject, scoreWrap);
 
       // A deduplicated result lists every folder the email appears in (e.g. a
       // Gmail message in both Inbox and All Mail). Fall back to the single
@@ -233,12 +278,16 @@
         });
         // Close the popup once the message opens, unless the user opted to keep
         // it open in settings.
-        const settings = await getSettings();
-        if (!settings.keepOpenAfterResult) window.close();
+          const settings = await getSettings();
+          if (!settings.keepOpenAfterResult) window.close();
       });
       resultsEl.appendChild(li);
     }
   }
+
+  // Cache last search so the sort dropdown can re-render without
+  // hitting the index again.
+  let lastSearch = {};
 
   let searchSeq = 0;
   async function runSearch() {
@@ -257,8 +306,15 @@
       return;
     }
     if (seq !== searchSeq) return; // a newer keystroke superseded this one
-    if (reply && reply.type === 'results') renderResults(reply.results, query, reply.errors, reply.filters);
-    else emptyEl.textContent = 'No response from the index.';
+    if (reply && reply.type === 'results') {
+      lastSearch.results = reply.results;
+      lastSearch.query = query;
+      lastSearch.errors = reply.errors;
+      lastSearch.filters = reply.filters;
+      renderResults(lastSearch.results, lastSearch.query, lastSearch.errors, lastSearch.filters);
+    } else {
+      emptyEl.textContent = 'No response from the index.';
+    }
   }
 
   // Kick off a full index build from the empty-state "Rebuild" link. The
@@ -324,7 +380,18 @@
     syncClearButton();
     resultsEl.replaceChildren();
     emptyEl.textContent = '';
+    lastSearch = {};
     queryInput.focus();
+  });
+
+  // Re-render the cached results with the newly chosen sort order without
+  // re-querying the index.
+  sortEl.addEventListener('change', () => {
+    renderResults(lastSearch.results, lastSearch.query, lastSearch.errors, lastSearch.filters);
+  });
+
+  sortBtn.addEventListener('click', () => {
+    sortControls.hidden = !sortControls.hidden;
   });
 
   // Esc clears the field when it has text; when empty, the anchored popup closes
