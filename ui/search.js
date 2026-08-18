@@ -32,10 +32,38 @@
   // as results appear and shrinks back (no lower than the opening size) when the
   // query is cleared. Driven by a ResizeObserver on the body; updating the window
   // height doesn't change body height (natural/content-sized), so no feedback loop.
+  // The height we last asked the window manager for, and whether the user has
+  // since sized the window themselves. Once they have, auto-fitting stops for
+  // good: their height is the answer, and the CSS flex column fills it with
+  // results. If a compositor reports a height we did not ask for (Wayland has
+  // form here) the worst case is that auto-fitting stops early — the window then
+  // simply stays as it is, which is the behaviour being asked for anyway.
+  let lastRequestedHeight = 0;
+  let userSizedWindow = false;
+  // Window managers do not always land on the height we asked for — GNOME adds
+  // its own chrome, and the settled value can differ by tens of pixels. Resize
+  // events inside this grace period after our own request are therefore treated
+  // as the WM answering us, and re-baseline what we consider "our" height.
+  let suppressResizeUntil = 0;
+
+  // Height the content WANTS, independent of the height it has been given.
+  // document.body.scrollHeight cannot answer this any more: in the modal the
+  // body is a full-height flex column, so its scrollHeight is just the viewport.
+  // Summing the blocks — with the list's full scrollHeight rather than its
+  // allocated box — measures the content itself.
+  function naturalContentHeight() {
+    let total = 0;
+    for (const el of document.body.children) {
+      total += el === resultsEl ? resultsEl.scrollHeight : el.offsetHeight;
+    }
+    return total;
+  }
+
   function fitModalWindow() {
     if (!isModal || modalWinId == null) return;
+    if (userSizedWindow) return; // their window, their height
     const maxContent = Math.min(560, Math.round((screen.availHeight || 900) * 0.7));
-    const content = Math.min(document.body.scrollHeight, maxContent);
+    const content = Math.min(naturalContentHeight(), maxContent);
     const chrome = Math.max(0, window.outerHeight - window.innerHeight);
     // Grow to fit content (header on open, then results), floored so the window
     // never shrinks below its opening size. The loading hint is the field
@@ -46,6 +74,8 @@
     // Only change height — the window grows straight down from its anchored
     // position (set in background.js for the expanded height). We never move the
     // top, so there's no jerky repositioning as results appear.
+    lastRequestedHeight = target;
+    suppressResizeUntil = Date.now() + 750;
     messenger.windows.update(modalWinId, { height: target }).catch(() => {});
   }
 
@@ -101,6 +131,17 @@
   }
 
   function renderStatus(s) {
+    // In the modal the body is a fixed-height flex column, so the ResizeObserver
+    // below no longer fires when content changes — every render path that alters
+    // height has to ask for a fit explicitly.
+    try {
+      renderStatusInner(s);
+    } finally {
+      fitModalWindow();
+    }
+  }
+
+  function renderStatusInner(s) {
     if (s.state === 'loading') {
       // The #loading banner already says "Loading your mail index…"; keep the
       // status line clear so we don't flash a misleading "0 messages indexed".
@@ -341,11 +382,15 @@
     // parser's reject-rather-than-guess rule exists to prevent.
     if (errors && errors.length) {
       emptyEl.textContent = errors.join(' ');
+      fitModalWindow();
       return;
     }
 
     const scope = describeFilters(filters);
-    if (!query.trim() && !scope) return;
+    if (!query.trim() && !scope) {
+      fitModalWindow();
+      return;
+    }
     if (results.length === 0) {
       emptyEl.textContent = scope ? `No matches ${scope}.` : 'No matches.';
       // The filters are invisible unless something points at them, and a search
@@ -353,6 +398,7 @@
       // exist. Deliberately NOT shown at rest: an always-present hint would add
       // height to the centered window's opening size and make it resize on open.
       emptyEl.appendChild(filterHint());
+      fitModalWindow();
       return;
     }
     for (const r of results) {
@@ -423,6 +469,7 @@
       });
       resultsEl.appendChild(li);
     }
+    fitModalWindow();
   }
 
   let searchSeq = 0;
@@ -583,6 +630,11 @@
     // Floor the window at its opening size so the empty/loading state never
     // resizes (only real results grow it) — kills the open-time flicker.
     modalMinHeight = MODAL_MIN_H;
+    // Deliberately NOT seeded with MODAL_MIN_H. Doing so broke auto-growth
+    // outright: GNOME reports an opening height that includes its own chrome, so
+    // the first resize event looked like a user drag, the guard latched, and the
+    // window then stayed at its tiny opening size forever. The guard arms only
+    // once we have actually requested a height of our own.
     // Learn our own window id, then size to fit and keep fitting as content
     // (results) changes.
     messenger.windows
@@ -593,6 +645,21 @@
       })
       .catch(() => {});
     let raf = 0;
+    // A height we did not request means the user dragged the window. The resize
+    // event fires synchronously, while the observer below defers to a frame, so
+    // this flag is always set before fitModalWindow could fight the drag.
+    window.addEventListener('resize', () => {
+      // Within the grace period this is the WM responding to us, not the user.
+      // Adopt whatever height it settled on as the new baseline, so a compositor
+      // that adds chrome cannot later look like a drag.
+      if (Date.now() < suppressResizeUntil) {
+        lastRequestedHeight = window.outerHeight;
+        return;
+      }
+      if (userSizedWindow || !lastRequestedHeight) return;
+      if (Math.abs(window.outerHeight - lastRequestedHeight) > 24) userSizedWindow = true;
+    });
+
     new ResizeObserver(() => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(fitModalWindow);
