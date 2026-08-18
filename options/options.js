@@ -3,11 +3,13 @@
 // Verify & repair) which talk to the background script over runtime messages.
 (function () {
   const KEY = 'settings';
+  const DEFAULT_SEARCH_RESULTS = 100;
   const keepOpen = document.getElementById('keepOpen');
   const keepWarm = document.getElementById('keepWarm');
   const searchUIPopup = document.getElementById('searchUIPopup');
   const searchUISpotlight = document.getElementById('searchUISpotlight');
   const searchUITab = document.getElementById('searchUITab');
+  const numberOfResultsEl = document.getElementById('numberOfResults');
   const includeSpamTrash = document.getElementById('includeSpamTrash');
   const indexEncryptedBodies = document.getElementById('indexEncryptedBodies');
   const bodyIndexLimit = document.getElementById('bodyIndexLimit');
@@ -84,6 +86,7 @@
     searchUIPopup.checked = settings.searchUI === 'popup';
     searchUITab.checked = settings.searchUI === 'tab';
     searchUISpotlight.checked = !settings.searchUI || settings.searchUI === 'spotlight';
+    numberOfResultsEl.value = settings.numberOfResults && settings.numberOfResults > 0 ? String(settings.numberOfResults) : String(DEFAULT_SEARCH_RESULTS);
     includeSpamTrash.checked = !!settings.includeSpamTrash;
     indexEncryptedBodies.checked = !!settings.indexEncryptedBodies;
     bodyIndexLimit.value = String(settings.bodyIndexLimit || 4000);
@@ -107,6 +110,12 @@
   searchUIPopup.addEventListener('change', saveSearchUI);
   searchUISpotlight.addEventListener('change', saveSearchUI);
   searchUITab.addEventListener('change', saveSearchUI);
+
+  numberOfResultsEl.addEventListener('change', async () => {
+    const settings = await getSettings();
+    settings.numberOfResults = parseInt(numberOfResultsEl.value, 10) || DEFAULT_SEARCH_RESULTS;
+    await messenger.storage.local.set({ [KEY]: settings });
+  });
 
   keepWarm.addEventListener('change', async () => {
     const settings = await getSettings();

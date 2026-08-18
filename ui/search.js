@@ -251,8 +251,9 @@
     const query = queryInput.value;
     const seq = ++searchSeq;
     let reply;
+    const settings = await getSettings();
     try {
-      reply = await send({ type: 'search', query });
+      reply = await send({ type: 'search', query: query, limit: settings.numberOfResults || 100 });
     } catch (e) {
       statusEl.textContent = 'Search backend not responding — reload the add-on (Remove + Load again). ' + (e && e.message ? e.message : '');
       return;
