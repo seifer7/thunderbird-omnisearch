@@ -8,6 +8,35 @@ Changelog tracking begins at the 0.4.x series; for earlier history see the git l
 
 ## [Unreleased]
 
+### Added
+
+- **Match counts and scroll-to-load results.** Search used to return the top 100
+  matches and say nothing about it, so there was no way to tell a complete result
+  set from a truncated one. Results now load 100 at a time with the next 100
+  arriving as you scroll, and a line at the end of the list reports the real
+  total ("Showing 100 of 1,247 matches"). Very large result sets stop at the
+  first 5,000 and say so, rather than implying the list is complete.
+
+### Changed
+
+- `lib/engine.js` splits `search()` into `rank()` (orders every match) and
+  `page()` (takes one window, reporting `total`/`hasMore`/`capped`). The engine
+  worker caches the ranked list between pages so a page boundary can't duplicate
+  or skip a message — the recency boost varies with time, so re-ranking per page
+  would reorder results underneath the reader. `search()` remains as a one-shot
+  wrapper.
+- The result footer's text is a pure function in `lib/results-summary.js`
+  (`OmniResults.footerText`), loaded by the popup and unit-tested, rather than
+  inline DOM code — it is a state machine, and the first cut of it made the
+  completed-paging message unreachable.
+- The match count renders in `#resultsMeta`, a sibling of the result list rather
+  than a row inside it, with a separate invisible sentinel driving the scroll
+  trigger. Sharing one element made the count unreachable: nearing it loaded
+  another page and pushed it further down.
+- The window no longer forces a full-list layout on every resize frame, which
+  made dragging the centered window flicker on Linux once a few pages had been
+  loaded.
+
 ## [0.8.0] - 2026-08-18
 
 ### Added
