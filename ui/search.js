@@ -506,15 +506,6 @@
     const badges = document.createElement('span');
     badges.className = 'badges';
 
-    // Relevance score badge (percentage of the top-scoring result).
-    if (r._pct != null && sortEl.value !== 'relevance') {
-      const scoreEl = document.createElement('span');
-      scoreEl.className = 'score';
-      scoreEl.title = 'Relevance score';
-      scoreEl.textContent = r._pct + '%';
-      badges.appendChild(scoreEl);
-    }
-
     if(r.attachmentNames && r.attachmentNames.length > 0) {
       let count = r.attachmentNames.length;
       const attachments = document.createElement('span');
@@ -522,6 +513,15 @@
       attachments.title = `Has ${count} attachment${count > 1 ? 's' : ''}`;
       attachments.innerHTML = attachmentIconHTML();
       badges.append(attachments);
+    }
+
+    // Relevance score badge (percentage of the top-scoring result).
+    if (r._pct != null && sortEl.value !== 'relevance') {
+      const scoreEl = document.createElement('span');
+      scoreEl.className = 'score';
+      scoreEl.title = 'Relevance score';
+      scoreEl.textContent = r._pct + '%';
+      badges.appendChild(scoreEl);
     }
 
     badges.append(date);
